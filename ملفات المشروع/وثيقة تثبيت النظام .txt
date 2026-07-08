@@ -1,0 +1,11 @@
+composer create-project laravel/laravel clinic-management "11.*" --no-interaction
+cd clinic-management
+composer config policy.advisories.block false
+composer install --no-interaction
+composer require filament/filament:"^3.3" -W --no-interaction
+php artisan filament:install --panels
+# عدّل .env: DB_CONNECTION=mysql, DB_DATABASE=clinic_management
+php artisan key:generate
+php artisan migrate:fresh
+php artisan make:filament-user
+php artisan serve
