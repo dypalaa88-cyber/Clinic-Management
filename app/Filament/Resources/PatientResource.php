@@ -1,9 +1,9 @@
 <?php
 
-// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
+// (1) تحديد المسار التنظيمي للملف
 namespace App\Filament\Resources;
 
-// (2) استيراد الكلاسات المطلوبة من Filament
+// (2) استيراد الكلاسات المطلوبة
 use App\Filament\Resources\PatientResource\Pages;
 use App\Filament\Resources\PatientResource\RelationManagers\AppointmentsRelationManager;
 use App\Models\Patient;
@@ -16,27 +16,20 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Illuminate\Database\Eloquent\Builder;
 
-// (3) تعريف كلاس PatientResource الذي يرث من Resource
+// (3) تعريف كلاس PatientResource
 class PatientResource extends Resource
 {
-    // (4) model: ربط الـ Resource بموديل Patient
     protected static ?string $model = Patient::class;
-
-    // (5) navigationIcon: أيقونة القائمة الجانبية
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-
-    // (6) navigationLabel: اسم القائمة الجانبية
     protected static ?string $navigationLabel = 'المرضى';
-
-    // (7) modelLabel: اسم المفرد للموديل
     protected static ?string $modelLabel = 'مريض';
-
-    // (8) pluralModelLabel: اسم الجمع للموديل
     protected static ?string $pluralModelLabel = 'المرضى';
 
     /**
-     * (9) دالة form(): بناء نموذج إضافة وتعديل مريض
+     * (4) دالة form(): نموذج إضافة وتعديل مريض
      */
     public static function form(Form $form): Form
     {
@@ -86,7 +79,7 @@ class PatientResource extends Resource
     }
 
     /**
-     * (10) دالة table(): بناء جدول عرض المرضى
+     * (5) دالة table(): جدول عرض المرضى
      */
     public static function table(Table $table): Table
     {
@@ -119,6 +112,11 @@ class PatientResource extends Resource
                     ->label('الجنس')
                     ->formatStateUsing(fn ($state) => $state === 'male' ? 'ذكر' : 'أنثى'),
 
+                TextColumn::make('national_id')
+                    ->label('الرقم القومي')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('created_at')
                     ->label('تاريخ التسجيل')
                     ->dateTime('Y-m-d')
@@ -126,6 +124,26 @@ class PatientResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Filter::make('search')
+                    ->label('بحث عن مريض')
+                    ->form([
+                        TextInput::make('query')
+                            ->label('ابحث باسم المريض، رقم الهاتف، أو الرقم القومي')
+                            ->placeholder('اكتب للبحث...'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (empty($data['query'])) {
+                            return $query;
+                        }
+                        $term = $data['query'];
+                        return $query->where(function ($q) use ($term) {
+                            $q->where('first_name', 'like', "%{$term}%")
+                              ->orWhere('last_name', 'like', "%{$term}%")
+                              ->orWhere('phone', 'like', "%{$term}%")
+                              ->orWhere('national_id', 'like', "%{$term}%");
+                        });
+                    }),
+
                 SelectFilter::make('gender')
                     ->label('الجنس')
                     ->options([
@@ -136,8 +154,7 @@ class PatientResource extends Resource
     }
 
     /**
-     * (11) دالة getRelations(): تسجيل Relation Managers
-     *     هذا هو السطر الجديد الذي يفعّل سجل الزيارات
+     * (6) دالة getRelations(): سجل الزيارات
      */
     public static function getRelations(): array
     {
@@ -147,7 +164,7 @@ class PatientResource extends Resource
     }
 
     /**
-     * (12) دالة getPages(): صفحات الـ Resource
+     * (7) دالة getPages(): صفحات الـ Resource
      */
     public static function getPages(): array
     {

@@ -16,6 +16,11 @@ class Schedule extends Model
 
     // (5) $fillable: الحقول المسموح تعبئتها جماعياً
     protected $fillable = [
+        'schedule_type',
+        'override_date',
+        'recurring_days',
+        'start_date',
+        'end_date',
         'doctor_id',
         'room_id',
         'day_of_week',
@@ -30,18 +35,21 @@ class Schedule extends Model
     protected function casts(): array
     {
         return [
-            'is_active'      => 'boolean',
-            'day_of_week'    => 'integer',
-            'slot_duration'  => 'integer',
-            'max_patients'   => 'integer',
-            'start_time'     => 'datetime:H:i',
-            'end_time'       => 'datetime:H:i',
+            'is_active'       => 'boolean',
+            'day_of_week'     => 'integer',
+            'slot_duration'   => 'integer',
+            'max_patients'    => 'integer',
+            'start_time'      => 'datetime:H:i',
+            'end_time'        => 'datetime:H:i',
+            'recurring_days'  => 'array',         // تحويل JSON إلى مصفوفة تلقائياً
+            'start_date'      => 'date',
+            'end_date'        => 'date',
+            'override_date'   => 'date',
         ];
     }
 
     /**
      * (7) doctor(): علاقة BelongsTo مع الطبيب
-     *     كل جدول ينتمي إلى طبيب واحد
      */
     public function doctor(): BelongsTo
     {
@@ -50,7 +58,6 @@ class Schedule extends Model
 
     /**
      * (8) room(): علاقة BelongsTo مع الغرفة
-     *     كل جدول قد يرتبط بغرفة (اختياري)
      */
     public function room(): BelongsTo
     {
