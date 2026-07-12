@@ -1,12 +1,11 @@
 <?php
 
-// (1) تحديد المسار التنظيمي للملف
 namespace App\Filament\Resources;
 
-// (2) استيراد الكلاسات المطلوبة
 use App\Filament\Resources\PatientResource\Pages;
 use App\Filament\Resources\PatientResource\RelationManagers\AppointmentsRelationManager;
 use App\Models\Patient;
+use App\Models\Contract;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables\Table;
@@ -18,8 +17,8 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\Filter;
 use Illuminate\Database\Eloquent\Builder;
+use Carbon\Carbon;
 
-// (3) تعريف كلاس PatientResource
 class PatientResource extends Resource
 {
     protected static ?string $model = Patient::class;
@@ -28,9 +27,6 @@ class PatientResource extends Resource
     protected static ?string $modelLabel = 'مريض';
     protected static ?string $pluralModelLabel = 'المرضى';
 
-    /**
-     * (4) دالة form(): نموذج إضافة وتعديل مريض
-     */
     public static function form(Form $form): Form
     {
         return $form
@@ -62,6 +58,20 @@ class PatientResource extends Resource
                     ])
                     ->required(),
 
+                // (1) العقد إجباري — يظهر فقط العقود السارية
+                Select::make('contract_id')
+                    ->label('العقد')
+                    ->options(function () {
+                        $today = Carbon::today();
+                        return Contract::where('is_active', true)
+                            ->whereDate('start_date', '<=', $today)
+                            ->whereDate('end_date', '>=', $today)
+                            ->get()
+                            ->mapWithKeys(fn ($c) => [$c->id => $c->name . ' (' . $c->organization_name . ')']);
+                    })
+                    ->searchable()
+                    ->required(),
+
                 Textarea::make('address')
                     ->label('العنوان')
                     ->maxLength(65535)
@@ -78,9 +88,6 @@ class PatientResource extends Resource
             ]);
     }
 
-    /**
-     * (5) دالة table(): جدول عرض المرضى
-     */
     public static function table(Table $table): Table
     {
         return $table
@@ -102,6 +109,10 @@ class PatientResource extends Resource
                 TextColumn::make('phone')
                     ->label('رقم الهاتف')
                     ->searchable(),
+
+                TextColumn::make('contract.name')
+                    ->label('العقد')
+                    ->placeholder('—'),
 
                 TextColumn::make('date_of_birth')
                     ->label('تاريخ الميلاد')
@@ -153,19 +164,13 @@ class PatientResource extends Resource
             ]);
     }
 
-    /**
-     * (6) دالة getRelations(): سجل الزيارات
-     */
-    public static function getRelations(): array
-    {
-        return [
-            AppointmentsRelationManager::class,
-        ];
-    }
-
-    /**
-     * (7) دالة getPages(): صفحات الـ Resource
-     */
+   public static function getRelations(): array
+{
+    return [
+        AppointmentsRelationManager::class,
+        \App\Filament\Resources\PatientResource\RelationManagers\PaymentsRelationManager::class,
+    ];
+}
     public static function getPages(): array
     {
         return [

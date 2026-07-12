@@ -4,7 +4,6 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractResource\Pages;
 use App\Models\Contract;
-use App\Models\PriceList;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables\Table;
@@ -39,11 +38,12 @@ class ContractResource extends Resource
                     ->required()
                     ->maxLength(100),
 
+                // (1) نوع العقد: نقدي أو تعاقد شركات
                 Select::make('contract_type')
                     ->label('نوع العقد')
                     ->options([
-                        'insurance' => 'تأمين',
-                        'corporate' => 'تعاقد شركة',
+                        'cash'      => 'نقدي',
+                        'corporate' => 'تعاقد شركات',
                     ])
                     ->required(),
 
@@ -107,11 +107,12 @@ class ContractResource extends Resource
                     ->label('الجهة')
                     ->searchable(),
 
+                // (2) عرض نوع العقد
                 TextColumn::make('contract_type')
                     ->label('النوع')
-                    ->formatStateUsing(fn ($state) => $state === 'insurance' ? 'تأمين' : 'تعاقد')
+                    ->formatStateUsing(fn ($state) => $state === 'cash' ? 'نقدي' : 'تعاقد')
                     ->badge()
-                    ->color(fn ($state) => $state === 'insurance' ? 'info' : 'success'),
+                    ->color(fn ($state) => $state === 'cash' ? 'success' : 'info'),
 
                 TextColumn::make('priceList.name')
                     ->label('اللائحة'),
@@ -138,7 +139,7 @@ class ContractResource extends Resource
                 SelectFilter::make('contract_type')
                     ->label('النوع')
                     ->options([
-                        'insurance' => 'تأمين',
+                        'cash'      => 'نقدي',
                         'corporate' => 'تعاقد',
                     ]),
 
