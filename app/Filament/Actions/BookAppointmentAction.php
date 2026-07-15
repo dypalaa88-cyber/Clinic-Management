@@ -6,10 +6,14 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use App\Models\Doctor;
 use App\Models\Appointment;
+use App\Models\Payment;
+use App\Models\PaymentItem;
 use App\Models\Patient;
 use App\Models\Specialty;
 use App\Models\Room;
@@ -25,6 +29,7 @@ class BookAppointmentAction
             ->color('success')
 
             ->form([
+                // ========== قسم الحجز ==========
                 Select::make('specialty_id')
                     ->label('التخصص')
                     ->placeholder('اختر التخصص')
@@ -54,16 +59,12 @@ class BookAppointmentAction
                     ->searchable()
                     ->nullable(),
 
-                // (1) تاريخ الموعد — يسمح بأي وقت في اليوم
                 DatePicker::make('appointment_date')
                     ->label('تاريخ الموعد')
                     ->default(now())
                     ->required()
-                    ->rules([
-                        'after_or_equal:' . Carbon::today()->format('Y-m-d'),
-                    ]),
+                    ->rules(['after_or_equal:' . Carbon::today()->format('Y-m-d')]),
 
-                // (2) قائمة أوقات 24 ساعة
                 Select::make('appointment_time')
                     ->label('وقت الموعد')
                     ->options(self::generateTimeOptions())
@@ -80,6 +81,87 @@ class BookAppointmentAction
                     ->default('scheduled')
                     ->required(),
 
+                // ========== قسم الخدمات ==========
+                Placeholder::make('consultation_price_label')
+                    ->label('سعر الكشف')
+                    ->content(function () use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract || !$contract->priceList) return 'لا يوجد عقد';
+                        $item = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+                        return $item ? number_format($item->price, 2) . ' جنيه' : 'غير محدد';
+                    }),
+
+                // (1) خدمات إضافية — تظهر فقط خدمات التخصص المختار
+                Select::make('additional_services')
+                    ->label('خدمات إضافية')
+                    ->placeholder('اختر خدمات إضافية (اختياري)')
+                    ->options(function (Get $get) use ($patient) {
+                        $contract = $patient->contract;
+                        $specialtyId = $get('specialty_id');
+                        if (!$contract || !$contract->priceList || !$specialtyId) return [];
+                        return $contract->priceList->items()
+                            ->where('is_active', true)
+                            ->where('specialty_id', $specialtyId)
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->multiple()
+                    ->searchable()
+                    ->reactive(),
+
+                Placeholder::make('total_label')
+                    ->label('المجموع الكلي')
+                    ->content(function (Get $get) use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract || !$contract->priceList) return '0.00 جنيه';
+                        $total = 0;
+                        $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+                        if ($consultation) $total += $consultation->price;
+                        $serviceIds = $get('additional_services') ?? [];
+                        if ($serviceIds) {
+                            $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                        }
+                        return number_format($total, 2) . ' جنيه';
+                    }),
+
+                // ========== قسم السداد ==========
+                Select::make('payment_method')
+                    ->label('طريقة الدفع')
+                    ->options([
+                        'cash'      => 'نقدي',
+                        'card'      => 'بطاقة',
+                        'insurance' => 'تأمين',
+                        'corporate' => 'تعاقد',
+                    ])
+                    ->default('cash')
+                    ->required(),
+
+                TextInput::make('paid_amount')
+                    ->label('المبلغ المدفوع')
+                    ->numeric()
+                    ->required()
+                    ->reactive(),
+
+                Placeholder::make('remaining_label')
+                    ->label('المبلغ المتبقي')
+                    ->content(function (Get $get) use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract || !$contract->priceList) return '0.00 جنيه';
+                        $total = 0;
+                        $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+                        if ($consultation) $total += $consultation->price;
+                        $serviceIds = $get('additional_services') ?? [];
+                        if ($serviceIds) {
+                            $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                        }
+                        $paid = (float) ($get('paid_amount') ?? 0);
+                        $remaining = $total - $paid;
+                        if ($remaining < 0) {
+                            return number_format(abs($remaining), 2) . ' جنيه (لصالح المريض)';
+                        }
+                        return number_format(max(0, $remaining), 2) . ' جنيه';
+                    }),
+
                 Textarea::make('notes')
                     ->label('ملاحظات')
                     ->placeholder('أي ملاحظات إضافية...')
@@ -87,7 +169,7 @@ class BookAppointmentAction
             ])
 
             ->action(function (array $data, Patient $record) {
-                Appointment::create([
+                $appointment = Appointment::create([
                     'patient_id'       => $record->id,
                     'doctor_id'        => $data['doctor_id'],
                     'room_id'          => $data['room_id'] ?? null,
@@ -99,14 +181,70 @@ class BookAppointmentAction
                     'created_by'       => auth()->id(),
                 ]);
 
+                $contract = $record->contract;
+                $total = 0;
+                if ($contract && $contract->priceList) {
+                    $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+                    if ($consultation) $total += $consultation->price;
+                    $serviceIds = $data['additional_services'] ?? [];
+                    if ($serviceIds) {
+                        $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                    }
+                }
+
+                $paid = (float) ($data['paid_amount'] ?? 0);
+                $remaining = $total - $paid;
+                $status = $paid >= $total ? 'paid' : ($paid > 0 ? 'partial' : 'pending');
+
+                $payment = Payment::create([
+                    'patient_id'       => $record->id,
+                    'appointment_id'   => $appointment->id,
+                    'contract_id'      => $record->contract_id,
+                    'total_amount'     => $total,
+                    'paid_amount'      => $paid,
+                    'remaining_amount' => max(0, $remaining),
+                    'payment_method'   => $data['payment_method'] ?? 'cash',
+                    'status'           => $status,
+                    'received_by'      => auth()->id(),
+                ]);
+
+                if ($contract && $contract->priceList) {
+                    $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+                    if ($consultation) {
+                        PaymentItem::create([
+                            'payment_id' => $payment->id,
+                            'name'       => $consultation->name,
+                            'category'   => $consultation->category,
+                            'price'      => $consultation->price,
+                            'quantity'   => 1,
+                            'total'      => $consultation->price,
+                        ]);
+                    }
+
+                    $serviceIds = $data['additional_services'] ?? [];
+                    if ($serviceIds) {
+                        $services = $contract->priceList->items()->whereIn('id', $serviceIds)->get();
+                        foreach ($services as $service) {
+                            PaymentItem::create([
+                                'payment_id' => $payment->id,
+                                'name'       => $service->name,
+                                'category'   => $service->category,
+                                'price'      => $service->price,
+                                'quantity'   => 1,
+                                'total'      => $service->price,
+                            ]);
+                        }
+                    }
+                }
+
                 Notification::make()
-                    ->title('تم حجز الموعد بنجاح')
+                    ->title('تم حجز الموعد والسداد بنجاح')
                     ->success()
                     ->send();
             })
 
             ->modalHeading('حجز موعد جديد')
-            ->modalSubmitActionLabel('حجز')
+            ->modalSubmitActionLabel('حجز وسداد')
             ->modalCancelActionLabel('إلغاء');
     }
 

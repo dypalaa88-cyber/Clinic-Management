@@ -12,6 +12,7 @@ class PriceListItem extends Model
 
     protected $fillable = [
         'price_list_id',
+        'specialty_id',
         'name',
         'category',
         'price',
@@ -29,9 +30,15 @@ class PriceListItem extends Model
         ];
     }
 
-    // (1) علاقة BelongsTo: كل بند ينتمي إلى لائحة واحدة
+    // (1) علاقة BelongsTo: كل بند ينتمي إلى لائحة
     public function priceList(): BelongsTo
     {
         return $this->belongsTo(PriceList::class);
+    }
+
+    // (2) علاقة BelongsTo: كل بند مرتبط بتخصص (اختياري)
+    public function specialty(): BelongsTo
+    {
+        return $this->belongsTo(Specialty::class);
     }
 }

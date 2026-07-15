@@ -21,7 +21,6 @@ class PriceListItemResource extends Resource
     protected static ?string $navigationLabel = 'بنود الأسعار';
     protected static ?string $modelLabel = 'بند سعر';
     protected static ?string $pluralModelLabel = 'بنود الأسعار';
-    protected static ?string $navigationParentItem = 'لوائح الأسعار';
 
     public static function form(Form $form): Form
     {
@@ -33,6 +32,14 @@ class PriceListItemResource extends Resource
                     ->searchable()
                     ->preload()
                     ->required(),
+
+                // (1) حقل التخصص — جديد
+                Select::make('specialty_id')
+                    ->label('التخصص')
+                    ->relationship('specialty', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->nullable(),
 
                 TextInput::make('name')
                     ->label('اسم الخدمة / الصنف')
@@ -84,6 +91,13 @@ class PriceListItemResource extends Resource
                     ->searchable()
                     ->sortable(),
 
+                // (2) عمود التخصص — جديد
+                TextColumn::make('specialty.name')
+                    ->label('التخصص')
+                    ->placeholder('—')
+                    ->searchable()
+                    ->sortable(),
+
                 TextColumn::make('name')
                     ->label('اسم الخدمة')
                     ->searchable()
@@ -118,6 +132,11 @@ class PriceListItemResource extends Resource
                 SelectFilter::make('price_list_id')
                     ->label('اللائحة')
                     ->relationship('priceList', 'name'),
+
+                // (3) فلتر بالتخصص — جديد
+                SelectFilter::make('specialty_id')
+                    ->label('التخصص')
+                    ->relationship('specialty', 'name'),
 
                 SelectFilter::make('category')
                     ->label('التصنيف')
