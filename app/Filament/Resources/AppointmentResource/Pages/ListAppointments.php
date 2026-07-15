@@ -14,6 +14,14 @@ class ListAppointments extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+
+            // (1) زر تقرير المواعيد
+            Actions\Action::make('appointment_report')
+                ->label('تقرير المواعيد')
+                ->icon('heroicon-o-document-text')
+                ->color('gray')
+                ->url(route('appointment.report'))
+                ->openUrlInNewTab(),
         ];
     }
 }

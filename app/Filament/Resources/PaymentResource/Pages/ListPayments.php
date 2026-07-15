@@ -13,7 +13,13 @@ class ListPayments extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            // (1) زر تقرير الفواتير
+            Actions\Action::make('payment_report')
+                ->label('تقرير الفواتير')
+                ->icon('heroicon-o-document-text')
+                ->color('gray')
+                ->url(route('payment.report'))
+                ->openUrlInNewTab(),
         ];
     }
 }

@@ -14,6 +14,14 @@ class ListDoctors extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+
+            // (1) زر تقرير الأطباء
+            Actions\Action::make('doctor_report')
+                ->label('تقرير الأطباء')
+                ->icon('heroicon-o-document-text')
+                ->color('gray')
+                ->url(route('doctor.report'))
+                ->openUrlInNewTab(),
         ];
     }
 }
