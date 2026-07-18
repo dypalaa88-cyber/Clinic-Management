@@ -19,6 +19,7 @@ class PriceListItem extends Model
         'cost',
         'code',
         'is_active',
+        'updated_by',
     ];
 
     protected function casts(): array
@@ -30,15 +31,19 @@ class PriceListItem extends Model
         ];
     }
 
-    // (1) علاقة BelongsTo: كل بند ينتمي إلى لائحة
     public function priceList(): BelongsTo
     {
         return $this->belongsTo(PriceList::class);
     }
 
-    // (2) علاقة BelongsTo: كل بند مرتبط بتخصص (اختياري)
     public function specialty(): BelongsTo
     {
         return $this->belongsTo(Specialty::class);
+    }
+
+    // (1) علاقة BelongsTo: من قام بآخر تعديل
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

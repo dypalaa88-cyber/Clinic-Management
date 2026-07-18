@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PriceListResource\Pages;
+use App\Filament\Resources\PriceListResource\RelationManagers\SpecialtiesRelationManager;
 use App\Models\PriceList;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -45,35 +46,20 @@ class PriceListResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('id')
-                    ->label('#')
-                    ->sortable(),
-
-                TextColumn::make('name')
-                    ->label('اسم اللائحة')
-                    ->searchable()
-                    ->sortable(),
-
-                TextColumn::make('items_count')
-                    ->label('عدد البنود')
-                    ->counts('items')
-                    ->sortable(),
-
-                IconColumn::make('is_active')
-                    ->label('مفعّلة')
-                    ->boolean(),
-
-                TextColumn::make('created_at')
-                    ->label('تاريخ الإنشاء')
-                    ->dateTime('Y-m-d')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('id')->label('#')->sortable(),
+                TextColumn::make('name')->label('اسم اللائحة')->searchable()->sortable(),
+                TextColumn::make('items_count')->label('عدد البنود')->counts('items')->sortable(),
+                IconColumn::make('is_active')->label('مفعّلة')->boolean(),
+                TextColumn::make('created_at')->label('تاريخ الإنشاء')->dateTime('Y-m-d')->sortable()->toggleable(isToggledHiddenByDefault: true),
             ]);
     }
 
+    // (1) تسجيل Relation Manager
     public static function getRelations(): array
     {
-        return [];
+        return [
+            SpecialtiesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

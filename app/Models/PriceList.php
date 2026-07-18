@@ -28,4 +28,17 @@ class PriceList extends Model
     {
         return $this->hasMany(PriceListItem::class);
     }
+
+    // (2) علاقة التخصصات عبر بنود الأسعار (HasManyThrough)
+    public function specialties()
+    {
+        return $this->hasManyThrough(
+            Specialty::class,
+            PriceListItem::class,
+            'price_list_id',     // Foreign key on PriceListItem table
+            'id',                 // Foreign key on Specialty table
+            'id',                 // Local key on PriceList table
+            'specialty_id'        // Local key on PriceListItem table
+        )->distinct();
+    }
 }

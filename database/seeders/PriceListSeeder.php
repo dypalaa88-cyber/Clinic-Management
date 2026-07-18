@@ -47,7 +47,10 @@ class PriceListSeeder extends Seeder
         ];
 
         foreach ($generalItems as $item) {
-            PriceListItem::create(array_merge($item, ['price_list_id' => $cashList->id]));
+            PriceListItem::create(array_merge($item, [
+                'price_list_id' => $cashList->id,
+                'updated_by'    => null,
+            ]));
         }
 
         // (4) خدمات التخصصات مع الأسعار
@@ -153,6 +156,7 @@ class PriceListSeeder extends Seeder
                         'price'         => $service['price'],
                         'cost'          => 0,
                         'is_active'     => true,
+                        'updated_by'    => null,
                     ]);
                 }
             }
