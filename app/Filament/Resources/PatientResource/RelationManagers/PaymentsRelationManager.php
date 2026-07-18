@@ -6,9 +6,6 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Table;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\Summarizers\Sum;
-use Filament\Infolists\Infolist;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\RepeatableEntry;
 
 class PaymentsRelationManager extends RelationManager
 {
@@ -25,7 +22,6 @@ class PaymentsRelationManager extends RelationManager
                 TextColumn::make('id')
                     ->label('#'),
 
-                // (1) تفاصيل الخدمات
                 TextColumn::make('items.name')
                     ->label('الخدمات')
                     ->listWithLineBreaks()
@@ -77,6 +73,41 @@ class PaymentsRelationManager extends RelationManager
                     ->label('التاريخ')
                     ->dateTime('Y-m-d H:i'),
             ])
-            ->defaultSort('created_at', 'desc');
+            ->defaultSort('created_at', 'desc')
+            ->headerActions([
+                // (1) طباعة إجمالي — كل الزيارات
+                \Filament\Tables\Actions\Action::make('print_summary')
+                    ->label('طباعة كشف إجمالي')
+                    ->icon('heroicon-o-printer')
+                    ->color('gray')
+                    ->url(fn () => route('patient.statement', [
+                        'patient' => $this->getOwnerRecord()->id,
+                        'mode' => 'summary'
+                    ]))
+                    ->openUrlInNewTab(),
+
+                \Filament\Tables\Actions\Action::make('print_detailed')
+                    ->label('طباعة كشف تفصيلي')
+                    ->icon('heroicon-o-document-text')
+                    ->color('gray')
+                    ->url(fn () => route('patient.statement', [
+                        'patient' => $this->getOwnerRecord()->id,
+                        'mode' => 'detailed'
+                    ]))
+                    ->openUrlInNewTab(),
+            ])
+            // (2) زر طباعة لكل دفعة على حدة
+            ->actions([
+                \Filament\Tables\Actions\Action::make('print_invoice')
+                    ->label('طباعة الفاتورة')
+                    ->icon('heroicon-o-printer')
+                    ->color('success')
+                    ->url(fn ($record) => route('patient.statement', [
+                        'patient' => $this->getOwnerRecord()->id,
+                        'mode' => 'detailed',
+                        'payment_id' => $record->id,
+                    ]))
+                    ->openUrlInNewTab(),
+            ]);
     }
 }

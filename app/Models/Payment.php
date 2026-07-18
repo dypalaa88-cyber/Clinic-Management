@@ -20,6 +20,9 @@ class Payment extends Model
         'remaining_amount',
         'payment_method',
         'status',
+        'is_locked',
+        'locked_by',
+        'locked_at',
         'notes',
         'received_by',
     ];
@@ -30,6 +33,8 @@ class Payment extends Model
             'total_amount'     => 'decimal:2',
             'paid_amount'      => 'decimal:2',
             'remaining_amount' => 'decimal:2',
+            'is_locked'        => 'boolean',
+            'locked_at'        => 'datetime',
         ];
     }
 
@@ -53,9 +58,20 @@ class Payment extends Model
         return $this->belongsTo(User::class, 'received_by');
     }
 
+    public function locker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'locked_by');
+    }
+
     // (1) علاقة HasMany: دفعة واحدة تحتوي على بنود كثيرة
     public function items(): HasMany
     {
         return $this->hasMany(PaymentItem::class);
+    }
+
+    // (2) دالة مساعدة: هل الفاتورة مقفولة؟
+    public function isLocked(): bool
+    {
+        return $this->is_locked;
     }
 }
