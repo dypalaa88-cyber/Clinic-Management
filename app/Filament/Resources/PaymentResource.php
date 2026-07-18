@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PaymentResource\Pages\ListPayments;
 use App\Models\Payment;
+use App\Models\Patient;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables\Table;
@@ -17,11 +18,11 @@ use Filament\Notifications\Notification;
 
 class PaymentResource extends Resource
 {
-    protected static ?string $model = Payment::class;
+    protected static ?string $model = Patient::class; // (1) تغيير الموديل إلى Patient
     protected static ?string $navigationIcon = 'heroicon-o-banknotes';
     protected static ?string $navigationLabel = 'فواتير';
-    protected static ?string $modelLabel = 'فاتورة';
-    protected static ?string $pluralModelLabel = 'فواتير';
+    protected static ?string $modelLabel = 'مريض';
+    protected static ?string $pluralModelLabel = 'فواتير المرضى';
 
     public static function canCreate(): bool
     {
@@ -37,53 +38,55 @@ class PaymentResource extends Resource
     {
         return $table
             ->paginated([25])
-            ->query(fn () => Payment::query()->with(['patient', 'contract', 'appointment.doctor', 'receiver', 'items']))
+            // (2) عرض المرضى الذين لديهم فواتير فقط
+            ->query(fn () => Patient::query()->whereHas('payments')->with('contract'))
             ->columns([
-                TextColumn::make('id')->label('#')->sortable(),
-                TextColumn::make('patient.first_name')
-                    ->label('المريض')
-                    ->formatStateUsing(fn ($record) => $record->patient?->first_name . ' ' . $record->patient?->last_name)
+                TextColumn::make('id')->label('كود المريض')->sortable(),
+                TextColumn::make('first_name')
+                    ->label('اسم المريض')
+                    ->formatStateUsing(fn ($record) => $record->first_name . ' ' . $record->last_name)
                     ->searchable()->sortable(),
-                TextColumn::make('total_amount')->label('الإجمالي')->money('EGP')->sortable(),
-                TextColumn::make('paid_amount')->label('المدفوع')->money('EGP')->sortable(),
-                TextColumn::make('remaining_amount')->label('المتبقي')->money('EGP')->sortable(),
-                TextColumn::make('is_locked')
-                    ->label('الحالة')
-                    ->formatStateUsing(fn ($state) => $state ? '🔒 مقفولة' : '🔓 مفتوحة')
-                    ->badge()
-                    ->color(fn ($state) => $state ? 'danger' : 'success'),
-                TextColumn::make('created_at')->label('تاريخ السداد')->dateTime('Y-m-d H:i')->sortable(),
+                TextColumn::make('phone')->label('رقم الهاتف')->searchable(),
+                TextColumn::make('contract.name')->label('العقد')->placeholder('—'),
+                // (3) إجمالي عدد الفواتير
+                TextColumn::make('payments_count')
+                    ->label('عدد الفواتير')
+                    ->counts('payments')
+                    ->sortable(),
+                // (4) إجمالي المدفوعات
+                TextColumn::make('payments_sum_paid_amount')
+                    ->label('إجمالي المدفوع')
+                    ->money('EGP')
+                    ->sortable(),
+                // (5) إجمالي المتبقي
+                TextColumn::make('total_remaining')
+                    ->label('إجمالي المتبقي')
+                    ->state(function (Patient $record) {
+                        return $record->payments->sum('remaining_amount');
+                    })
+                    ->money('EGP')
+                    ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('status')->label('حالة الدفع')->options([
-                    'paid' => 'مسدد', 'partial' => 'مسدد جزئياً', 'pending' => 'غير مسدد',
-                ]),
-                Filter::make('created_at')->label('تاريخ السداد')
-                    ->form([DatePicker::make('date_from')->label('من تاريخ'), DatePicker::make('date_to')->label('إلى تاريخ')])
+                SelectFilter::make('contract_id')->label('العقد')->relationship('contract', 'name'),
+                Filter::make('search')
+                    ->label('بحث')
+                    ->form([\Filament\Forms\Components\TextInput::make('query')->label('اسم المريض أو رقم الهاتف')])
                     ->query(function (Builder $query, array $data): Builder {
-                        return $query->when($data['date_from'], fn ($q, $d) => $q->whereDate('created_at', '>=', $d))->when($data['date_to'], fn ($q, $d) => $q->whereDate('created_at', '<=', $d));
+                        return $query->when($data['query'], fn ($q, $term) => $q->where(function ($q) use ($term) {
+                            $q->where('first_name', 'like', "%{$term}%")->orWhere('last_name', 'like', "%{$term}%")->orWhere('phone', 'like', "%{$term}%");
+                        }));
                     }),
             ])
-            ->defaultSort('created_at', 'desc')
+            ->defaultSort('id', 'asc')
             ->actions([
-                // (1) فتح الفاتورة في صفحة منفصلة
-                Action::make('view_invoice')
-                    ->label('فتح الفاتورة')
+                // (6) زر فتح فواتير المريض
+                Action::make('view_invoices')
+                    ->label('عرض الفواتير')
                     ->icon('heroicon-o-document-text')
                     ->color('primary')
-                    ->url(fn (Payment $record) => route('payment.invoice', ['payment' => $record->id]))
+                    ->url(fn (Patient $record) => route('payment.patient-invoices', ['patient' => $record->id]))
                     ->openUrlInNewTab(),
-
-                // (2) غلق/فك الفاتورة
-                Action::make('toggle_lock')
-                    ->label(fn (Payment $record) => $record->is_locked ? 'فك' : 'غلق')
-                    ->icon(fn (Payment $record) => $record->is_locked ? 'heroicon-o-lock-open' : 'heroicon-o-lock-closed')
-                    ->color(fn (Payment $record) => $record->is_locked ? 'warning' : 'danger')
-                    ->visible(fn () => auth()->user()->role === 'admin')
-                    ->action(function (Payment $record) {
-                        $record->update(['is_locked' => !$record->is_locked, 'locked_by' => $record->is_locked ? null : auth()->id(), 'locked_at' => $record->is_locked ? null : now()]);
-                        Notification::make()->title($record->is_locked ? 'تم فك الفاتورة' : 'تم غلق الفاتورة')->success()->send();
-                    }),
             ]);
     }
 
