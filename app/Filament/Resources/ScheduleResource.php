@@ -112,10 +112,12 @@ class ScheduleResource extends Resource
                     ->required()
                     ->after('start_time'),
 
-                // (16) slot_duration: مدة الكشف
+                // (16) slot_duration: مدة الكشف — الآن تشمل 5 و10 دقائق
                 Select::make('slot_duration')
                     ->label('مدة الكشف (دقيقة)')
                     ->options([
+                        5  => '5 دقائق',
+                        10 => '10 دقائق',
                         15 => '15 دقيقة',
                         20 => '20 دقيقة',
                         30 => '30 دقيقة',
@@ -123,13 +125,13 @@ class ScheduleResource extends Resource
                     ->default(15)
                     ->required(),
 
-                // (17) max_patients: الحد الأقصى
+                // (17) max_patients: الحد الأقصى — بدون حد أعلى
                 TextInput::make('max_patients')
-                    ->label('الحد الأقصى للمرضى')
+                    ->label('الحد الأقصى للمرضى (اختياري)')
                     ->numeric()
                     ->minValue(1)
-                    ->maxValue(100)
-                    ->nullable(),
+                    ->nullable()
+                    ->helperText('اتركه فارغاً إذا لا يوجد حد أقصى'),
 
                 // (18) is_active: تفعيل/تعطيل
                 Toggle::make('is_active')
@@ -145,32 +147,29 @@ class ScheduleResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->paginated([25])
+            ->query(fn () => Schedule::query()->with(['doctor', 'room']))
             ->columns([
-                // (20) id
                 TextColumn::make('id')
                     ->label('#')
                     ->sortable(),
 
-                // (21) schedule_type: نوع الجدول
                 TextColumn::make('schedule_type')
                     ->label('النوع')
                     ->formatStateUsing(fn ($state) => $state === 'recurring' ? 'دوري' : 'استثنائي')
                     ->badge()
                     ->color(fn ($state) => $state === 'recurring' ? 'success' : 'warning'),
 
-                // (22) doctor: اسم الطبيب
                 TextColumn::make('doctor.first_name')
                     ->label('الطبيب')
                     ->formatStateUsing(fn ($record) => $record->doctor->first_name . ' ' . $record->doctor->last_name)
                     ->searchable()
                     ->sortable(),
 
-                // (23) room: الغرفة
                 TextColumn::make('room.name')
                     ->label('الغرفة')
                     ->placeholder('—'),
 
-                // (24) recurring_days: أيام العمل (للدوري فقط)
                 TextColumn::make('recurring_days')
                     ->label('الأيام')
                     ->formatStateUsing(function ($state) {
@@ -179,13 +178,11 @@ class ScheduleResource extends Resource
                         return collect($state)->map(fn ($d) => $days[$d] ?? '')->join('، ');
                     }),
 
-                // (25) override_date: تاريخ الاستثنائي
                 TextColumn::make('override_date')
                     ->label('تاريخ استثنائي')
                     ->date('Y-m-d')
                     ->placeholder('—'),
 
-                // (26) start_time - end_time
                 TextColumn::make('start_time')
                     ->label('من')
                     ->time('H:i'),
@@ -194,18 +191,19 @@ class ScheduleResource extends Resource
                     ->label('إلى')
                     ->time('H:i'),
 
-                // (27) slot_duration
                 TextColumn::make('slot_duration')
                     ->label('مدة الكشف')
                     ->formatStateUsing(fn ($state) => $state . ' دقيقة'),
 
-                // (28) is_active
+                TextColumn::make('max_patients')
+                    ->label('الحد الأقصى')
+                    ->placeholder('مفتوح'),
+
                 IconColumn::make('is_active')
                     ->label('مفعّل')
                     ->boolean(),
             ])
             ->filters([
-                // (29) فلتر حسب النوع
                 SelectFilter::make('schedule_type')
                     ->label('النوع')
                     ->options([
@@ -213,7 +211,6 @@ class ScheduleResource extends Resource
                         'override'  => 'استثنائي',
                     ]),
 
-                // (30) فلتر حسب الطبيب
                 SelectFilter::make('doctor_id')
                     ->label('الطبيب')
                     ->relationship('doctor', 'first_name')
@@ -222,17 +219,15 @@ class ScheduleResource extends Resource
     }
 
     /**
-     * (31) دالة getRelations(): العلاقات
+     * (20) دالة getRelations(): العلاقات
      */
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     /**
-     * (32) دالة getPages(): صفحات الـ Resource
+     * (21) دالة getPages(): صفحات الـ Resource
      */
     public static function getPages(): array
     {

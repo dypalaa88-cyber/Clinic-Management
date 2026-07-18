@@ -11,6 +11,7 @@ use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use App\Models\PriceList;
 use App\Models\PriceListItem;
+use App\Models\Specialty;
 
 class ListPriceLists extends ListRecords
 {
@@ -35,7 +36,7 @@ class ListPriceLists extends ListRecords
                         ->required()
                         ->reactive(),
 
-                    // (3) الوجهة: لائحة موجودة أو جديدة
+                    // (3) الوجهة
                     Radio::make('destination_type')
                         ->label('الوجهة')
                         ->options([
@@ -46,7 +47,7 @@ class ListPriceLists extends ListRecords
                         ->required()
                         ->reactive(),
 
-                    // (4) اختيار لائحة الوجهة (تظهر فقط إذا اختار "موجودة")
+                    // (4) لائحة الوجهة
                     Select::make('destination_id')
                         ->label('اللائحة الوجهة')
                         ->options(function ($get) {
@@ -57,37 +58,54 @@ class ListPriceLists extends ListRecords
                         ->visible(fn ($get) => $get('destination_type') === 'existing')
                         ->required(fn ($get) => $get('destination_type') === 'existing'),
 
-                    // (5) اسم اللائحة الجديدة (يظهر فقط إذا اختار "جديدة")
+                    // (5) اسم اللائحة الجديدة
                     TextInput::make('new_name')
                         ->label('اسم اللائحة الجديدة')
                         ->visible(fn ($get) => $get('destination_type') === 'new')
                         ->required(fn ($get) => $get('destination_type') === 'new')
                         ->maxLength(100),
 
-                    // (6) نطاق النسخ: الكل أو بند واحد
+                    // (6) نطاق النسخ
                     Radio::make('copy_scope')
                         ->label('نطاق النسخ')
                         ->options([
-                            'all'  => 'نسخ كل البنود',
-                            'one'  => 'نسخ بند واحد فقط',
+                            'all'      => 'نسخ كل البنود',
+                            'category' => 'نسخ تصنيف أو تخصص محدد',
                         ])
                         ->default('all')
                         ->required()
                         ->reactive(),
 
-                    // (7) اختيار بند واحد (يظهر فقط إذا اختار "بند واحد")
-                    Select::make('item_id')
-                        ->label('اختر البند')
-                        ->options(function ($get) {
-                            $sourceId = $get('source_id');
-                            if (!$sourceId) return [];
-                            return PriceListItem::where('price_list_id', $sourceId)->pluck('name', 'id');
-                        })
-                        ->searchable()
-                        ->visible(fn ($get) => $get('copy_scope') === 'one')
-                        ->required(fn ($get) => $get('copy_scope') === 'one'),
+                    // (7) نوع التصفية — معطل إذا اختار "الكل"
+                    Select::make('filter_type')
+                        ->label('نوع التصفية')
+                        ->options([
+                            'category'  => 'تصنيف (أدوية، مستلزمات...)',
+                            'specialty' => 'تخصص (عظام، باطنة...)',
+                        ])
+                        ->visible(fn ($get) => $get('copy_scope') === 'category')
+                        ->required(fn ($get) => $get('copy_scope') === 'category')
+                        ->reactive(),
 
-                    // (8) نوع تعديل السعر
+                    // (8) اختيار التصنيف — الأدوية والمستلزمات فقط
+                    Select::make('category')
+                        ->label('اختر التصنيف')
+                        ->options([
+                            'medicine' => 'دواء',
+                            'supply'   => 'مستلزم',
+                        ])
+                        ->visible(fn ($get) => $get('filter_type') === 'category')
+                        ->required(fn ($get) => $get('filter_type') === 'category'),
+
+                    // (9) اختيار التخصص
+                    Select::make('specialty_id')
+                        ->label('اختر التخصص')
+                        ->options(Specialty::pluck('name', 'id'))
+                        ->searchable()
+                        ->visible(fn ($get) => $get('filter_type') === 'specialty')
+                        ->required(fn ($get) => $get('filter_type') === 'specialty'),
+
+                    // (10) نوع تعديل السعر
                     Radio::make('price_adjustment_type')
                         ->label('تعديل الأسعار')
                         ->options([
@@ -99,7 +117,7 @@ class ListPriceLists extends ListRecords
                         ->required()
                         ->reactive(),
 
-                    // (9) نسبة الزيادة (تظهر فقط إذا اختار نسبة مئوية)
+                    // (11) نسبة الزيادة
                     TextInput::make('percentage')
                         ->label('نسبة الزيادة (%)')
                         ->numeric()
@@ -109,7 +127,7 @@ class ListPriceLists extends ListRecords
                         ->visible(fn ($get) => $get('price_adjustment_type') === 'percentage')
                         ->required(fn ($get) => $get('price_adjustment_type') === 'percentage'),
 
-                    // (10) قيمة الزيادة الثابتة (تظهر فقط إذا اختار قيمة ثابتة)
+                    // (12) قيمة الزيادة الثابتة
                     TextInput::make('fixed_amount')
                         ->label('قيمة الزيادة (جنيه)')
                         ->numeric()
@@ -119,10 +137,8 @@ class ListPriceLists extends ListRecords
                         ->required(fn ($get) => $get('price_adjustment_type') === 'fixed'),
                 ])
                 ->action(function (array $data) {
-                    // (11) جلب اللائحة المصدر
                     $source = PriceList::with('items')->findOrFail($data['source_id']);
 
-                    // (12) تحديد اللائحة الوجهة
                     if ($data['destination_type'] === 'new') {
                         $destination = PriceList::create([
                             'name'        => $data['new_name'],
@@ -133,14 +149,19 @@ class ListPriceLists extends ListRecords
                         $destination = PriceList::findOrFail($data['destination_id']);
                     }
 
-                    // (13) تحديد البنود المراد نسخها
-                    $items = $data['copy_scope'] === 'one'
-                        ? $source->items->where('id', $data['item_id'])
-                        : $source->items;
+                    $query = $source->items();
 
+                    if ($data['copy_scope'] === 'category') {
+                        if ($data['filter_type'] === 'category') {
+                            $query->where('category', $data['category']);
+                        } elseif ($data['filter_type'] === 'specialty') {
+                            $query->where('specialty_id', $data['specialty_id']);
+                        }
+                    }
+
+                    $items = $query->get();
                     $copiedCount = 0;
 
-                    // (14) نسخ كل بند مع تعديل السعر
                     foreach ($items as $item) {
                         $newPrice = $item->price;
 
@@ -152,6 +173,7 @@ class ListPriceLists extends ListRecords
 
                         PriceListItem::create([
                             'price_list_id' => $destination->id,
+                            'specialty_id'  => $item->specialty_id,
                             'name'          => $item->name,
                             'category'      => $item->category,
                             'price'         => round($newPrice, 2),
@@ -163,7 +185,6 @@ class ListPriceLists extends ListRecords
                         $copiedCount++;
                     }
 
-                    // (15) إشعار نجاح
                     Notification::make()
                         ->title('تم نسخ البنود بنجاح')
                         ->body('عدد البنود المنسوخة: ' . $copiedCount . ' | الوجهة: ' . $destination->name)

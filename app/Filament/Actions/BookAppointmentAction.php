@@ -109,8 +109,9 @@ class BookAppointmentAction
                     ->searchable()
                     ->reactive(),
 
-                Placeholder::make('total_label')
-                    ->label('المجموع الكلي')
+                // (2) الإجمالي قبل نسبة التحمل
+                Placeholder::make('total_before_copay_label')
+                    ->label('الإجمالي قبل التحمل')
                     ->content(function (Get $get) use ($patient) {
                         $contract = $patient->contract;
                         if (!$contract || !$contract->priceList) return '0.00 جنيه';
@@ -122,6 +123,33 @@ class BookAppointmentAction
                             $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
                         }
                         return number_format($total, 2) . ' جنيه';
+                    }),
+
+                // (3) نسبة تحمل المريض
+                Placeholder::make('copay_info_label')
+                    ->label('نسبة تحمل المريض')
+                    ->content(function () use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract) return 'لا يوجد عقد';
+                        return $contract->copay_percentage . '%';
+                    }),
+
+                // (4) المجموع بعد نسبة التحمل (اللي هيدفعه المريض)
+                Placeholder::make('total_after_copay_label')
+                    ->label('المطلوب من المريض')
+                    ->content(function (Get $get) use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract || !$contract->priceList) return '0.00 جنيه';
+                        $total = 0;
+                        $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+                        if ($consultation) $total += $consultation->price;
+                        $serviceIds = $get('additional_services') ?? [];
+                        if ($serviceIds) {
+                            $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                        }
+                        // (5) حساب المبلغ بعد نسبة التحمل
+                        $patientOwes = $total * $contract->copay_percentage / 100;
+                        return number_format($patientOwes, 2) . ' جنيه';
                     }),
 
                 // ========== قسم السداد ==========
@@ -142,6 +170,7 @@ class BookAppointmentAction
                     ->required()
                     ->reactive(),
 
+                // (6) المتبقي — يحسب على المبلغ بعد التحمل
                 Placeholder::make('remaining_label')
                     ->label('المبلغ المتبقي')
                     ->content(function (Get $get) use ($patient) {
@@ -154,8 +183,10 @@ class BookAppointmentAction
                         if ($serviceIds) {
                             $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
                         }
+                        // (7) المبلغ المطلوب = الإجمالي × نسبة التحمل
+                        $patientOwes = $total * $contract->copay_percentage / 100;
                         $paid = (float) ($get('paid_amount') ?? 0);
-                        $remaining = $total - $paid;
+                        $remaining = $patientOwes - $paid;
                         if ($remaining < 0) {
                             return number_format(abs($remaining), 2) . ' جنيه (لصالح المريض)';
                         }
@@ -192,17 +223,20 @@ class BookAppointmentAction
                     }
                 }
 
+                // (8) المبلغ المطلوب من المريض = الإجمالي × نسبة التحمل
+                $patientOwes = $total * $contract->copay_percentage / 100;
                 $paid = (float) ($data['paid_amount'] ?? 0);
-                $remaining = $total - $paid;
-                $status = $paid >= $total ? 'paid' : ($paid > 0 ? 'partial' : 'pending');
+                $remaining = max(0, $patientOwes - $paid);
+                $status = $paid >= $patientOwes ? 'paid' : ($paid > 0 ? 'partial' : 'pending');
 
+                // (9) حفظ الدفع بالمبلغ الصحيح
                 $payment = Payment::create([
                     'patient_id'       => $record->id,
                     'appointment_id'   => $appointment->id,
                     'contract_id'      => $record->contract_id,
-                    'total_amount'     => $total,
+                    'total_amount'     => $patientOwes,
                     'paid_amount'      => $paid,
-                    'remaining_amount' => max(0, $remaining),
+                    'remaining_amount' => $remaining,
                     'payment_method'   => $data['payment_method'] ?? 'cash',
                     'status'           => $status,
                     'received_by'      => auth()->id(),

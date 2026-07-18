@@ -13,6 +13,8 @@ use Filament\Forms\Form;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Get;
+use Illuminate\Database\Eloquent\Builder;
 
 class PriceListItemsRelationManager extends RelationManager
 {
@@ -53,14 +55,22 @@ class PriceListItemsRelationManager extends RelationManager
                     ->required(),
 
                 TextInput::make('price')
-                    ->label('السعر (جنيه)')
+                    ->label('سعر البيع (جنيه)')
                     ->numeric()
-                    ->required(),
+                    ->required()
+                    ->reactive(),
 
                 TextInput::make('cost')
-                    ->label('التكلفة (جنيه)')
+                    ->label('سعر التكلفة (جنيه)')
                     ->numeric()
-                    ->nullable(),
+                    ->nullable()
+                    ->rules([
+                        function (Get $get) {
+                            $price = $get('price');
+                            if ($price === null) return [];
+                            return ['numeric', 'max:' . $price];
+                        },
+                    ]),
 
                 Toggle::make('is_active')
                     ->label('مفعّل')
@@ -71,10 +81,14 @@ class PriceListItemsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            // (1) عرض الخدمات الفريدة فقط (بدون تكرار)
+            ->modifyQueryUsing(fn (Builder $query) => $query->whereIn('id', function ($sub) {
+                $sub->selectRaw('MIN(id)')
+                    ->from('price_list_items')
+                    ->where('specialty_id', $this->getOwnerRecord()->id)
+                    ->groupBy('name');
+            }))
             ->columns([
-                TextColumn::make('priceList.name')
-                    ->label('اللائحة'),
-
                 TextColumn::make('name')
                     ->label('اسم الخدمة')
                     ->searchable(),
@@ -100,7 +114,6 @@ class PriceListItemsRelationManager extends RelationManager
                     ->label('مفعّل')
                     ->boolean(),
             ])
-            // (1) أزرار الإضافة والتعديل والحذف
             ->headerActions([
                 CreateAction::make(),
             ])
