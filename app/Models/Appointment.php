@@ -5,25 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Appointment extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'patient_id',
-        'doctor_id',
-        'room_id',
-        'schedule_id',
-        'appointment_date',
-        'appointment_time',
-        'end_time',
-        'type',
-        'status',
-        'is_completed',
-        'queue_number',
-        'notes',
-        'created_by',
+        'patient_id', 'doctor_id', 'room_id', 'schedule_id',
+        'appointment_date', 'appointment_time', 'end_time',
+        'type', 'status', 'is_completed', 'queue_number',
+        'notes', 'created_by',
     ];
 
     protected function casts(): array
@@ -37,28 +29,15 @@ class Appointment extends Model
         ];
     }
 
-    public function patient(): BelongsTo
-    {
-        return $this->belongsTo(Patient::class);
-    }
+    public function patient(): BelongsTo { return $this->belongsTo(Patient::class); }
+    public function doctor(): BelongsTo { return $this->belongsTo(Doctor::class); }
+    public function room(): BelongsTo { return $this->belongsTo(Room::class); }
+    public function schedule(): BelongsTo { return $this->belongsTo(Schedule::class); }
+    public function creator(): BelongsTo { return $this->belongsTo(User::class, 'created_by'); }
 
-    public function doctor(): BelongsTo
+    // (1) علاقة HasMany: موعد واحد له مدفوعات (عادة واحدة)
+    public function payments(): HasMany
     {
-        return $this->belongsTo(Doctor::class);
-    }
-
-    public function room(): BelongsTo
-    {
-        return $this->belongsTo(Room::class);
-    }
-
-    public function schedule(): BelongsTo
-    {
-        return $this->belongsTo(Schedule::class);
-    }
-
-    public function creator(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->hasMany(Payment::class);
     }
 }

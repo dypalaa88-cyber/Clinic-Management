@@ -87,10 +87,17 @@
                 <th>النوع</th>
                 <th>الحالة</th>
                 <th>تم الكشف</th>
+                {{-- (1) أعمدة مالية --}}
+                <th>الإجمالي</th>
+                <th>المدفوع</th>
+                <th>المتبقي</th>
             </tr>
         </thead>
         <tbody>
             @foreach($appointments as $a)
+            @php
+                $payment = $a->payments->first();
+            @endphp
             <tr>
                 <td>{{ $a->id }}</td>
                 <td>{{ $a->patient?->first_name }} {{ $a->patient?->last_name }}</td>
@@ -101,6 +108,10 @@
                 <td>{{ $a->type === 'scheduled' ? 'محجوز' : 'مباشر' }}</td>
                 <td>{{ match($a->status) { 'pending' => 'قيد الانتظار', 'confirmed' => 'مؤكد', 'in_progress' => 'جاري الكشف', 'completed' => 'مكتمل', 'cancelled' => 'ملغي', 'no_show' => 'لم يحضر', default => $a->status } }}</td>
                 <td>{{ $a->is_completed ? '✅' : '❌' }}</td>
+                {{-- (2) عرض الماليات --}}
+                <td>{{ $payment ? number_format($payment->total_amount, 2) . ' ج' : '—' }}</td>
+                <td>{{ $payment ? number_format($payment->paid_amount, 2) . ' ج' : '—' }}</td>
+                <td>{{ $payment ? number_format($payment->remaining_amount, 2) . ' ج' : '—' }}</td>
             </tr>
             @endforeach
         </tbody>

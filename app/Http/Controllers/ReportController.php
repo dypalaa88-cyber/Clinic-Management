@@ -19,6 +19,7 @@ class ReportController extends Controller
         $contractId = $request->get('contract_id');
         $gender = $request->get('gender');
         $search = $request->get('search');
+        $doctorId = $request->get('doctor_id');
 
         $patients = Patient::with('contract')
             ->whereDate('created_at', '>=', $dateFrom)
@@ -30,6 +31,7 @@ class ReportController extends Controller
                   ->orWhere('last_name', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
             }))
+            ->when($doctorId, fn ($q) => $q->whereHas('appointments', fn ($q) => $q->where('doctor_id', $doctorId)))
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -37,9 +39,10 @@ class ReportController extends Controller
         $male = $patients->where('gender', 'male')->count();
         $female = $patients->where('gender', 'female')->count();
         $contracts = Contract::where('is_active', true)->pluck('name', 'id');
+        $doctors = Doctor::pluck('first_name', 'id')->map(fn ($n, $id) => Doctor::find($id)->first_name . ' ' . Doctor::find($id)->last_name);
 
         return view('reports.patients', compact(
-            'patients', 'total', 'male', 'female', 'dateFrom', 'dateTo', 'contracts', 'contractId', 'gender', 'search'
+            'patients', 'total', 'male', 'female', 'dateFrom', 'dateTo', 'contracts', 'contractId', 'gender', 'search', 'doctors', 'doctorId'
         ));
     }
 
@@ -69,7 +72,7 @@ class ReportController extends Controller
         ));
     }
 
-    // (3) تقرير المواعيد
+    // (3) تقرير المواعيد — مع أعمدة مالية
     public function appointments(Request $request)
     {
         $dateFrom = $request->get('date_from', now()->startOfMonth()->format('Y-m-d'));
@@ -78,7 +81,7 @@ class ReportController extends Controller
         $status = $request->get('status');
         $type = $request->get('type');
 
-        $appointments = Appointment::with(['patient', 'doctor', 'room'])
+        $appointments = Appointment::with(['patient', 'doctor', 'room', 'payments'])
             ->whereDate('appointment_date', '>=', $dateFrom)
             ->whereDate('appointment_date', '<=', $dateTo)
             ->when($doctorId, fn ($q) => $q->where('doctor_id', $doctorId))

@@ -22,14 +22,12 @@
 </head>
 <body>
 
-    {{-- (1) أزرار التصدير والطباعة --}}
     <div class="no-print" style="margin-bottom: 15px;">
         <button class="btn btn-print" onclick="window.print()">🖨️ طباعة</button>
         <button class="btn btn-excel" onclick="exportTable('excel')">📥 تصدير Excel</button>
         <button class="btn btn-csv" onclick="exportTable('csv')">📥 تصدير CSV</button>
     </div>
 
-    {{-- (2) بطاقات الإحصائيات --}}
     <div class="stats">
         <div class="stat-box" style="background: #e8f5e9;">
             <div style="font-size: 28px; font-weight: bold; color: #2e7d32;">{{ $total }}</div>
@@ -45,10 +43,8 @@
         </div>
     </div>
 
-    {{-- (3) معلومات الفترة --}}
     <p>الفترة: <strong>{{ $dateFrom }} ← {{ $dateTo }}</strong></p>
 
-    {{-- (4) شريط الفلاتر الإضافية --}}
     <form method="GET" class="no-print filter-bar">
         <input type="hidden" name="date_from" value="{{ $dateFrom }}">
         <input type="hidden" name="date_to" value="{{ $dateTo }}">
@@ -64,11 +60,17 @@
             <option value="male" {{ ($gender ?? '') == 'male' ? 'selected' : '' }}>ذكر</option>
             <option value="female" {{ ($gender ?? '') == 'female' ? 'selected' : '' }}>أنثى</option>
         </select>
+        {{-- (1) فلتر الدكتور --}}
+        <select name="doctor_id">
+            <option value="">كل الأطباء</option>
+            @foreach($doctors as $id => $name)
+                <option value="{{ $id }}" {{ ($doctorId ?? '') == $id ? 'selected' : '' }}>{{ $name }}</option>
+            @endforeach
+        </select>
         <button type="submit" class="btn btn-filter">تصفية</button>
         <a href="?date_from={{ $dateFrom }}&date_to={{ $dateTo }}" style="text-decoration: none; color: #2563eb;">مسح الفلاتر</a>
     </form>
 
-    {{-- (5) جدول التقرير --}}
     <table id="reportTable">
         <thead>
             <tr>
@@ -78,6 +80,8 @@
                 <th>الجنس</th>
                 <th>العمر</th>
                 <th>العقد</th>
+                {{-- (2) عمود الدكتور --}}
+                <th>آخر طبيب زائر</th>
                 <th>تاريخ التسجيل</th>
             </tr>
         </thead>
@@ -90,6 +94,8 @@
                 <td>{{ $patient->gender === 'male' ? 'ذكر' : 'أنثى' }}</td>
                 <td>{{ $patient->date_of_birth?->age ?? '—' }}</td>
                 <td>{{ $patient->contract?->name ?? '—' }}</td>
+                {{-- (3) آخر طبيب --}}
+                <td>{{ $patient->appointments->last()?->doctor?->first_name }} {{ $patient->appointments->last()?->doctor?->last_name ?? '—' }}</td>
                 <td>{{ $patient->created_at->format('Y-m-d') }}</td>
             </tr>
             @endforeach
@@ -98,7 +104,6 @@
 
     <p>إجمالي النتائج: <strong>{{ $total }}</strong> مريض</p>
 
-    {{-- (6) سكريبت التصدير --}}
     <script>
         function exportTable(type) {
             let table = document.getElementById('reportTable');
