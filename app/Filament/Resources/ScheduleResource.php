@@ -1,6 +1,6 @@
 <?php
 
-// (1) تحديد المسار التنظيمي للملف
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Resources;
 
 // (2) استيراد الكلاسات المطلوبة
@@ -33,14 +33,16 @@ class ScheduleResource extends Resource
     protected static ?string $modelLabel = 'جدول طبيب';
     protected static ?string $pluralModelLabel = 'جداول الأطباء';
 
+    // (7) تجميع القائمة الجانبية
+    protected static ?string $navigationGroup = 'الأطباء والعيادات';
+
     /**
-     * (7) دالة form(): نموذج إضافة وتعديل جدول طبيب
+     * (8) دالة form(): نموذج إضافة وتعديل جدول طبيب
      */
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // (8) schedule_type: اختيار نوع الجدول (دوري أو استثنائي)
                 Select::make('schedule_type')
                     ->label('نوع الجدول')
                     ->options([
@@ -51,16 +53,16 @@ class ScheduleResource extends Resource
                     ->required()
                     ->reactive(),
 
-                // (9) doctor_id: اختيار الطبيب
                 Select::make('doctor_id')
                     ->label('الطبيب')
                     ->relationship('doctor', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->first_name . ' ' . $record->last_name)
+                    ->getOptionLabelFromRecordUsing(function ($record) {
+                        return $record->first_name . ' ' . $record->last_name;
+                    })
                     ->searchable()
                     ->preload()
                     ->required(),
 
-                // (10) room_id: اختيار الغرفة
                 Select::make('room_id')
                     ->label('الغرفة')
                     ->relationship('room', 'name')
@@ -68,14 +70,16 @@ class ScheduleResource extends Resource
                     ->preload()
                     ->nullable(),
 
-                // (11) override_date: تاريخ الجدول الاستثنائي (يظهر فقط إذا النوع = override)
                 DatePicker::make('override_date')
                     ->label('تاريخ الجدول الاستثنائي')
-                    ->visible(fn ($get) => $get('schedule_type') === 'override')
-                    ->required(fn ($get) => $get('schedule_type') === 'override')
+                    ->visible(function ($get) {
+                        return $get('schedule_type') === 'override';
+                    })
+                    ->required(function ($get) {
+                        return $get('schedule_type') === 'override';
+                    })
                     ->minDate(now()),
 
-                // (12) recurring_days: أيام الأسبوع (يظهر فقط إذا النوع = recurring)
                 CheckboxList::make('recurring_days')
                     ->label('أيام العمل الأسبوعية')
                     ->options([
@@ -87,32 +91,36 @@ class ScheduleResource extends Resource
                         5 => 'الجمعة',
                         6 => 'السبت',
                     ])
-                    ->visible(fn ($get) => $get('schedule_type') === 'recurring')
-                    ->required(fn ($get) => $get('schedule_type') === 'recurring')
+                    ->visible(function ($get) {
+                        return $get('schedule_type') === 'recurring';
+                    })
+                    ->required(function ($get) {
+                        return $get('schedule_type') === 'recurring';
+                    })
                     ->columns(3),
 
-                // (13) start_date / end_date: نطاق التواريخ للجدول الدوري
                 DatePicker::make('start_date')
                     ->label('تاريخ بدء الجدول (اختياري)')
-                    ->visible(fn ($get) => $get('schedule_type') === 'recurring'),
+                    ->visible(function ($get) {
+                        return $get('schedule_type') === 'recurring';
+                    }),
 
                 DatePicker::make('end_date')
                     ->label('تاريخ انتهاء الجدول (اختياري)')
-                    ->visible(fn ($get) => $get('schedule_type') === 'recurring')
+                    ->visible(function ($get) {
+                        return $get('schedule_type') === 'recurring';
+                    })
                     ->after('start_date'),
 
-                // (14) start_time: وقت البدء
                 TimePicker::make('start_time')
                     ->label('وقت البدء')
                     ->required(),
 
-                // (15) end_time: وقت الانتهاء
                 TimePicker::make('end_time')
                     ->label('وقت الانتهاء')
                     ->required()
                     ->after('start_time'),
 
-                // (16) slot_duration: مدة الكشف — الآن تشمل 5 و10 دقائق
                 Select::make('slot_duration')
                     ->label('مدة الكشف (دقيقة)')
                     ->options([
@@ -125,7 +133,6 @@ class ScheduleResource extends Resource
                     ->default(15)
                     ->required(),
 
-                // (17) max_patients: الحد الأقصى — بدون حد أعلى
                 TextInput::make('max_patients')
                     ->label('الحد الأقصى للمرضى (اختياري)')
                     ->numeric()
@@ -133,7 +140,6 @@ class ScheduleResource extends Resource
                     ->nullable()
                     ->helperText('اتركه فارغاً إذا لا يوجد حد أقصى'),
 
-                // (18) is_active: تفعيل/تعطيل
                 Toggle::make('is_active')
                     ->label('مفعّل')
                     ->default(true),
@@ -142,13 +148,15 @@ class ScheduleResource extends Resource
     }
 
     /**
-     * (19) دالة table(): جدول عرض جداول الأطباء
+     * (9) دالة table(): جدول عرض جداول الأطباء
      */
     public static function table(Table $table): Table
     {
         return $table
             ->paginated([25])
-            ->query(fn () => Schedule::query()->with(['doctor', 'room']))
+            ->query(function () {
+                return Schedule::query()->with(['doctor', 'room']);
+            })
             ->columns([
                 TextColumn::make('id')
                     ->label('#')
@@ -156,13 +164,19 @@ class ScheduleResource extends Resource
 
                 TextColumn::make('schedule_type')
                     ->label('النوع')
-                    ->formatStateUsing(fn ($state) => $state === 'recurring' ? 'دوري' : 'استثنائي')
+                    ->formatStateUsing(function ($state) {
+                        return $state === 'recurring' ? 'دوري' : 'استثنائي';
+                    })
                     ->badge()
-                    ->color(fn ($state) => $state === 'recurring' ? 'success' : 'warning'),
+                    ->color(function ($state) {
+                        return $state === 'recurring' ? 'success' : 'warning';
+                    }),
 
                 TextColumn::make('doctor.first_name')
                     ->label('الطبيب')
-                    ->formatStateUsing(fn ($record) => $record->doctor->first_name . ' ' . $record->doctor->last_name)
+                    ->formatStateUsing(function ($record) {
+                        return $record->doctor->first_name . ' ' . $record->doctor->last_name;
+                    })
                     ->searchable()
                     ->sortable(),
 
@@ -173,9 +187,25 @@ class ScheduleResource extends Resource
                 TextColumn::make('recurring_days')
                     ->label('الأيام')
                     ->formatStateUsing(function ($state) {
-                        if (!$state) return '—';
-                        $days = [0 => 'أحد', 1 => 'إثنين', 2 => 'ثلاثاء', 3 => 'أربعاء', 4 => 'خميس', 5 => 'جمعة', 6 => 'سبت'];
-                        return collect($state)->map(fn ($d) => $days[$d] ?? '')->join('، ');
+                        if (!$state) {
+                            return '—';
+                        }
+
+                        $days = [
+                            0 => 'أحد',
+                            1 => 'إثنين',
+                            2 => 'ثلاثاء',
+                            3 => 'أربعاء',
+                            4 => 'خميس',
+                            5 => 'جمعة',
+                            6 => 'سبت',
+                        ];
+
+                        return collect($state)
+                            ->map(function ($day) use ($days) {
+                                return $days[$day] ?? '';
+                            })
+                            ->join('، ');
                     }),
 
                 TextColumn::make('override_date')
@@ -193,7 +223,9 @@ class ScheduleResource extends Resource
 
                 TextColumn::make('slot_duration')
                     ->label('مدة الكشف')
-                    ->formatStateUsing(fn ($state) => $state . ' دقيقة'),
+                    ->formatStateUsing(function ($state) {
+                        return $state . ' دقيقة';
+                    }),
 
                 TextColumn::make('max_patients')
                     ->label('الحد الأقصى')
@@ -214,12 +246,14 @@ class ScheduleResource extends Resource
                 SelectFilter::make('doctor_id')
                     ->label('الطبيب')
                     ->relationship('doctor', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->first_name . ' ' . $record->last_name),
+                    ->getOptionLabelFromRecordUsing(function ($record) {
+                        return $record->first_name . ' ' . $record->last_name;
+                    }),
             ]);
     }
 
     /**
-     * (20) دالة getRelations(): العلاقات
+     * (10) دالة getRelations(): العلاقات
      */
     public static function getRelations(): array
     {
@@ -227,7 +261,7 @@ class ScheduleResource extends Resource
     }
 
     /**
-     * (21) دالة getPages(): صفحات الـ Resource
+     * (11) دالة getPages(): صفحات الـ Resource
      */
     public static function getPages(): array
     {

@@ -1,7 +1,9 @@
 <?php
 
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Actions;
 
+// (2) استيراد الكلاسات المطلوبة
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DatePicker;
@@ -17,10 +19,15 @@ use App\Models\PaymentItem;
 use App\Models\Patient;
 use App\Models\Specialty;
 use App\Models\Room;
+use App\Models\ContractCopayTier;
 use Carbon\Carbon;
 
+// (3) تعريف كلاس BookAppointmentAction
 class BookAppointmentAction
 {
+    /**
+     * (4) دالة make(): إنشاء زر حجز موعد لمريض محدد
+     */
     public static function make(Patient $patient): Action
     {
         return Action::make('book_appointment')
@@ -37,17 +44,26 @@ class BookAppointmentAction
                     ->searchable()
                     ->required()
                     ->reactive()
-                    ->afterStateUpdated(fn ($set) => $set('doctor_id', null)),
+                    ->afterStateUpdated(function ($set) {
+                        $set('doctor_id', null);
+                    }),
 
                 Select::make('doctor_id')
                     ->label('الطبيب')
                     ->placeholder('اختر الطبيب')
                     ->options(function (Get $get) {
                         $specialtyId = $get('specialty_id');
-                        if (!$specialtyId) return [];
-                        return Doctor::whereHas('specialties', fn ($q) => $q->where('specialty_id', $specialtyId))
+                        if (!$specialtyId) {
+                            return [];
+                        }
+
+                        return Doctor::whereHas('specialties', function ($query) use ($specialtyId) {
+                            $query->where('specialty_id', $specialtyId);
+                        })
                             ->get()
-                            ->mapWithKeys(fn ($d) => [$d->id => $d->first_name . ' ' . $d->last_name]);
+                            ->mapWithKeys(function ($doctor) {
+                                return [$doctor->id => $doctor->first_name . ' ' . $doctor->last_name];
+                            });
                     })
                     ->searchable()
                     ->required(),
@@ -81,24 +97,71 @@ class BookAppointmentAction
                     ->default('scheduled')
                     ->required(),
 
+                // ========== قسم اختيار شريحة التحمل ==========
+                Select::make('copay_tier_id')
+                    ->label('شريحة التحمل')
+                    ->placeholder('اختر شريحة التحمل')
+                    ->options(function () use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract) {
+                            return [];
+                        }
+
+                        $tiers = $contract->copayTiers()->where('is_active', true)->get();
+
+                        if ($tiers->isEmpty()) {
+                            return [];
+                        }
+
+                        return $tiers->mapWithKeys(function ($tier) {
+                            $categories = is_array($tier->category)
+                                ? collect($tier->category)->join('، ')
+                                : $tier->category;
+
+                            $label = $tier->percentage . '%';
+                            if ($tier->tier_name) {
+                                $label .= ' - ' . $tier->tier_name;
+                            }
+                            $label .= ' (' . $categories . ')';
+
+                            return [$tier->id => $label];
+                        });
+                    })
+                    ->visible(function () use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract) {
+                            return false;
+                        }
+
+                        return $contract->copayTiers()->where('is_active', true)->count() > 0;
+                    })
+                    ->reactive(),
+
                 // ========== قسم الخدمات ==========
                 Placeholder::make('consultation_price_label')
                     ->label('سعر الكشف')
                     ->content(function () use ($patient) {
                         $contract = $patient->contract;
-                        if (!$contract || !$contract->priceList) return 'لا يوجد عقد';
+                        if (!$contract || !$contract->priceList) {
+                            return 'لا يوجد عقد';
+                        }
+
                         $item = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
+
                         return $item ? number_format($item->price, 2) . ' جنيه' : 'غير محدد';
                     }),
 
-                // (1) خدمات إضافية — تظهر فقط خدمات التخصص المختار
-                Select::make('additional_services')
-                    ->label('خدمات إضافية')
-                    ->placeholder('اختر خدمات إضافية (اختياري)')
+                // (5) خدمات التخصص (CheckboxList)
+                Select::make('specialty_services')
+                    ->label('🩺 خدمات التخصص')
+                    ->placeholder('اختر خدمات التخصص')
                     ->options(function (Get $get) use ($patient) {
                         $contract = $patient->contract;
                         $specialtyId = $get('specialty_id');
-                        if (!$contract || !$contract->priceList || !$specialtyId) return [];
+                        if (!$contract || !$contract->priceList || !$specialtyId) {
+                            return [];
+                        }
+
                         return $contract->priceList->items()
                             ->where('is_active', true)
                             ->where('specialty_id', $specialtyId)
@@ -109,46 +172,128 @@ class BookAppointmentAction
                     ->searchable()
                     ->reactive(),
 
-                // (2) الإجمالي قبل نسبة التحمل
+                // (6) خدمات المعمل (CheckboxList مستقل)
+                Select::make('lab_services')
+                    ->label('🔬 خدمات المعمل')
+                    ->placeholder('اختر تحاليل')
+                    ->options(function () use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract || !$contract->priceList) {
+                            return [];
+                        }
+
+                        return $contract->priceList->items()
+                            ->where('is_active', true)
+                            ->where('category', 'lab')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->multiple()
+                    ->searchable()
+                    ->reactive(),
+
+                // (7) خدمات الأشعة (CheckboxList مستقل)
+                Select::make('radiology_services')
+                    ->label('🩻 خدمات الأشعة')
+                    ->placeholder('اختر أشعة')
+                    ->options(function () use ($patient) {
+                        $contract = $patient->contract;
+                        if (!$contract || !$contract->priceList) {
+                            return [];
+                        }
+
+                        return $contract->priceList->items()
+                            ->where('is_active', true)
+                            ->where('category', 'radiology')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->multiple()
+                    ->searchable()
+                    ->reactive(),
+
                 Placeholder::make('total_before_copay_label')
                     ->label('الإجمالي قبل التحمل')
                     ->content(function (Get $get) use ($patient) {
                         $contract = $patient->contract;
-                        if (!$contract || !$contract->priceList) return '0.00 جنيه';
+                        if (!$contract || !$contract->priceList) {
+                            return '0.00 جنيه';
+                        }
+
                         $total = 0;
                         $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
-                        if ($consultation) $total += $consultation->price;
-                        $serviceIds = $get('additional_services') ?? [];
-                        if ($serviceIds) {
-                            $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                        if ($consultation) {
+                            $total += $consultation->price;
                         }
+
+                        $allIds = array_merge(
+                            $get('specialty_services') ?? [],
+                            $get('lab_services') ?? [],
+                            $get('radiology_services') ?? []
+                        );
+
+                        if ($allIds) {
+                            $total += $contract->priceList->items()->whereIn('id', $allIds)->sum('price');
+                        }
+
                         return number_format($total, 2) . ' جنيه';
                     }),
 
-                // (3) نسبة تحمل المريض
                 Placeholder::make('copay_info_label')
                     ->label('نسبة تحمل المريض')
-                    ->content(function () use ($patient) {
+                    ->content(function (Get $get) use ($patient) {
                         $contract = $patient->contract;
-                        if (!$contract) return 'لا يوجد عقد';
-                        return $contract->copay_percentage . '%';
+                        if (!$contract) {
+                            return 'لا يوجد عقد';
+                        }
+
+                        $tierId = $get('copay_tier_id');
+
+                        if ($tierId) {
+                            $tier = ContractCopayTier::find($tierId);
+
+                            return $tier ? $tier->percentage . '%' : $contract->copay_percentage . '% (عام)';
+                        }
+
+                        return $contract->copay_percentage . '% (عام)';
                     }),
 
-                // (4) المجموع بعد نسبة التحمل (اللي هيدفعه المريض)
                 Placeholder::make('total_after_copay_label')
                     ->label('المطلوب من المريض')
                     ->content(function (Get $get) use ($patient) {
                         $contract = $patient->contract;
-                        if (!$contract || !$contract->priceList) return '0.00 جنيه';
+                        if (!$contract || !$contract->priceList) {
+                            return '0.00 جنيه';
+                        }
+
                         $total = 0;
                         $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
-                        if ($consultation) $total += $consultation->price;
-                        $serviceIds = $get('additional_services') ?? [];
-                        if ($serviceIds) {
-                            $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                        if ($consultation) {
+                            $total += $consultation->price;
                         }
-                        // (5) حساب المبلغ بعد نسبة التحمل
-                        $patientOwes = $total * $contract->copay_percentage / 100;
+
+                        $allIds = array_merge(
+                            $get('specialty_services') ?? [],
+                            $get('lab_services') ?? [],
+                            $get('radiology_services') ?? []
+                        );
+
+                        if ($allIds) {
+                            $total += $contract->priceList->items()->whereIn('id', $allIds)->sum('price');
+                        }
+
+                        $tierId = $get('copay_tier_id');
+                        $percentage = $contract->copay_percentage;
+
+                        if ($tierId) {
+                            $tier = ContractCopayTier::find($tierId);
+                            if ($tier) {
+                                $percentage = $tier->percentage;
+                            }
+                        }
+
+                        $patientOwes = $total * $percentage / 100;
+
                         return number_format($patientOwes, 2) . ' جنيه';
                     }),
 
@@ -170,26 +315,48 @@ class BookAppointmentAction
                     ->required()
                     ->reactive(),
 
-                // (6) المتبقي — يحسب على المبلغ بعد التحمل
                 Placeholder::make('remaining_label')
                     ->label('المبلغ المتبقي')
                     ->content(function (Get $get) use ($patient) {
                         $contract = $patient->contract;
-                        if (!$contract || !$contract->priceList) return '0.00 جنيه';
+                        if (!$contract || !$contract->priceList) {
+                            return '0.00 جنيه';
+                        }
+
                         $total = 0;
                         $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
-                        if ($consultation) $total += $consultation->price;
-                        $serviceIds = $get('additional_services') ?? [];
-                        if ($serviceIds) {
-                            $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                        if ($consultation) {
+                            $total += $consultation->price;
                         }
-                        // (7) المبلغ المطلوب = الإجمالي × نسبة التحمل
-                        $patientOwes = $total * $contract->copay_percentage / 100;
+
+                        $allIds = array_merge(
+                            $get('specialty_services') ?? [],
+                            $get('lab_services') ?? [],
+                            $get('radiology_services') ?? []
+                        );
+
+                        if ($allIds) {
+                            $total += $contract->priceList->items()->whereIn('id', $allIds)->sum('price');
+                        }
+
+                        $tierId = $get('copay_tier_id');
+                        $percentage = $contract->copay_percentage;
+
+                        if ($tierId) {
+                            $tier = ContractCopayTier::find($tierId);
+                            if ($tier) {
+                                $percentage = $tier->percentage;
+                            }
+                        }
+
+                        $patientOwes = $total * $percentage / 100;
                         $paid = (float) ($get('paid_amount') ?? 0);
                         $remaining = $patientOwes - $paid;
+
                         if ($remaining < 0) {
                             return number_format(abs($remaining), 2) . ' جنيه (لصالح المريض)';
                         }
+
                         return number_format(max(0, $remaining), 2) . ' جنيه';
                     }),
 
@@ -214,22 +381,39 @@ class BookAppointmentAction
 
                 $contract = $record->contract;
                 $total = 0;
+
                 if ($contract && $contract->priceList) {
                     $consultation = $contract->priceList->items()->where('name', 'like', '%كشف%')->first();
-                    if ($consultation) $total += $consultation->price;
-                    $serviceIds = $data['additional_services'] ?? [];
-                    if ($serviceIds) {
-                        $total += $contract->priceList->items()->whereIn('id', $serviceIds)->sum('price');
+                    if ($consultation) {
+                        $total += $consultation->price;
+                    }
+
+                    $allIds = array_merge(
+                        $data['specialty_services'] ?? [],
+                        $data['lab_services'] ?? [],
+                        $data['radiology_services'] ?? []
+                    );
+
+                    if ($allIds) {
+                        $total += $contract->priceList->items()->whereIn('id', $allIds)->sum('price');
                     }
                 }
 
-                // (8) المبلغ المطلوب من المريض = الإجمالي × نسبة التحمل
-                $patientOwes = $total * $contract->copay_percentage / 100;
+                $tierId = $data['copay_tier_id'] ?? null;
+                $percentage = $contract->copay_percentage ?? 0;
+
+                if ($tierId) {
+                    $tier = ContractCopayTier::find($tierId);
+                    if ($tier) {
+                        $percentage = $tier->percentage;
+                    }
+                }
+
+                $patientOwes = $total * $percentage / 100;
                 $paid = (float) ($data['paid_amount'] ?? 0);
                 $remaining = max(0, $patientOwes - $paid);
                 $status = $paid >= $patientOwes ? 'paid' : ($paid > 0 ? 'partial' : 'pending');
 
-                // (9) حفظ الدفع بالمبلغ الصحيح
                 $payment = Payment::create([
                     'patient_id'       => $record->id,
                     'appointment_id'   => $appointment->id,
@@ -255,9 +439,14 @@ class BookAppointmentAction
                         ]);
                     }
 
-                    $serviceIds = $data['additional_services'] ?? [];
-                    if ($serviceIds) {
-                        $services = $contract->priceList->items()->whereIn('id', $serviceIds)->get();
+                    $allIds = array_merge(
+                        $data['specialty_services'] ?? [],
+                        $data['lab_services'] ?? [],
+                        $data['radiology_services'] ?? []
+                    );
+
+                    if ($allIds) {
+                        $services = $contract->priceList->items()->whereIn('id', $allIds)->get();
                         foreach ($services as $service) {
                             PaymentItem::create([
                                 'payment_id' => $payment->id,
@@ -282,6 +471,9 @@ class BookAppointmentAction
             ->modalCancelActionLabel('إلغاء');
     }
 
+    /**
+     * (8) دالة generateTimeOptions(): توليد قائمة أوقات من 09:00 إلى 22:00 كل 15 دقيقة
+     */
     private static function generateTimeOptions(): array
     {
         $times = [];
@@ -297,6 +489,9 @@ class BookAppointmentAction
         return $times;
     }
 
+    /**
+     * (9) دالة closestTime(): إيجاد أقرب وقت متاح بعد الآن بـ 5 دقائق
+     */
     private static function closestTime(): string
     {
         $now = Carbon::now()->addMinutes(5);

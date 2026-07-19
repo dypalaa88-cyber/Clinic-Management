@@ -1,6 +1,6 @@
 <?php
 
-// (1) تحديد المسار التنظيمي للملف
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Resources;
 
 // (2) استيراد الكلاسات المطلوبة
@@ -12,11 +12,9 @@ use Filament\Tables\Table;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Get;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Validation\Rule;
 
 // (3) تعريف كلاس PriceListItemResource
 class PriceListItemResource extends Resource
@@ -32,14 +30,16 @@ class PriceListItemResource extends Resource
     protected static ?string $modelLabel = 'بند سعر';
     protected static ?string $pluralModelLabel = 'بنود الأسعار';
 
+    // (7) إخفاء الشاشة من القائمة الجانبية — البنود تُدار من داخل اللوائح والتخصصات
+    protected static bool $shouldRegisterNavigation = false;
+
     /**
-     * (7) دالة form(): نموذج إضافة وتعديل بند سعر
+     * (8) دالة form(): نموذج إضافة وتعديل بند سعر
      */
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // (8) اختيار اللائحة
                 Select::make('price_list_id')
                     ->label('اللائحة')
                     ->relationship('priceList', 'name')
@@ -47,7 +47,6 @@ class PriceListItemResource extends Resource
                     ->preload()
                     ->required(),
 
-                // (9) اختيار التخصص (اختياري)
                 Select::make('specialty_id')
                     ->label('التخصص')
                     ->relationship('specialty', 'name')
@@ -55,13 +54,11 @@ class PriceListItemResource extends Resource
                     ->preload()
                     ->nullable(),
 
-                // (10) اسم الخدمة
                 TextInput::make('name')
                     ->label('اسم الخدمة / الصنف')
                     ->required()
                     ->maxLength(200),
 
-                // (11) تصنيف الخدمة
                 Select::make('category')
                     ->label('التصنيف')
                     ->options([
@@ -73,34 +70,31 @@ class PriceListItemResource extends Resource
                     ])
                     ->required(),
 
-                // (12) سعر البيع — مطلوب
                 TextInput::make('price')
                     ->label('سعر البيع (جنيه)')
                     ->numeric()
                     ->required()
                     ->reactive(),
 
-                // (13) سعر التكلفة — يجب أن لا يتجاوز سعر البيع
                 TextInput::make('cost')
                     ->label('سعر التكلفة (جنيه)')
                     ->numeric()
                     ->nullable()
                     ->rules([
-                        // (14) قاعدة مخصصة: التكلفة ≤ سعر البيع
-                        function (Get $get) {
+                        function ($get) {
                             $price = $get('price');
-                            if ($price === null) return [];
+                            if ($price === null) {
+                                return [];
+                            }
                             return ['numeric', 'max:' . $price];
                         },
                     ]),
 
-                // (15) كود داخلي
                 TextInput::make('code')
                     ->label('الكود الداخلي')
                     ->maxLength(50)
                     ->nullable(),
 
-                // (16) تفعيل/تعطيل
                 Toggle::make('is_active')
                     ->label('مفعّل')
                     ->default(true),
@@ -108,7 +102,7 @@ class PriceListItemResource extends Resource
     }
 
     /**
-     * (17) دالة table(): جدول عرض بنود الأسعار
+     * (9) دالة table(): جدول عرض بنود الأسعار
      */
     public static function table(Table $table): Table
     {
@@ -136,13 +130,15 @@ class PriceListItemResource extends Resource
 
                 TextColumn::make('category')
                     ->label('التصنيف')
-                    ->formatStateUsing(fn ($state) => match ($state) {
-                        'medicine'   => 'دواء',
-                        'supply'     => 'مستلزم',
-                        'lab'        => 'تحليل معملي',
-                        'radiology'  => 'أشعة',
-                        'service'    => 'خدمة طبية',
-                        default      => $state,
+                    ->formatStateUsing(function ($state) {
+                        return match ($state) {
+                            'medicine'   => 'دواء',
+                            'supply'     => 'مستلزم',
+                            'lab'        => 'تحليل معملي',
+                            'radiology'  => 'أشعة',
+                            'service'    => 'خدمة طبية',
+                            default      => $state,
+                        };
                     })
                     ->badge(),
 
@@ -181,7 +177,7 @@ class PriceListItemResource extends Resource
     }
 
     /**
-     * (18) دالة getRelations(): العلاقات
+     * (10) دالة getRelations(): العلاقات
      */
     public static function getRelations(): array
     {
@@ -189,7 +185,7 @@ class PriceListItemResource extends Resource
     }
 
     /**
-     * (19) دالة getPages(): صفحات الـ Resource
+     * (11) دالة getPages(): صفحات الـ Resource
      */
     public static function getPages(): array
     {

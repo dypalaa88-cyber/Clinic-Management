@@ -1,6 +1,6 @@
 <?php
 
-// (1) تحديد المسار التنظيمي للملف
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Resources;
 
 // (2) استيراد الكلاسات المطلوبة
@@ -30,30 +30,29 @@ class RoomResource extends Resource
     protected static ?string $modelLabel = 'غرفة';
     protected static ?string $pluralModelLabel = 'الغرف والعيادات';
 
+    // (7) تجميع القائمة الجانبية
+    protected static ?string $navigationGroup = 'الأطباء والعيادات';
+
     /**
-     * (7) دالة form(): نموذج إضافة وتعديل غرفة
+     * (8) دالة form(): نموذج إضافة وتعديل غرفة
      */
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // (8) name: اسم الغرفة
                 TextInput::make('name')
                     ->label('اسم الغرفة')
                     ->required()
                     ->maxLength(50),
 
-                // (9) floor: الطابق
                 TextInput::make('floor')
                     ->label('الطابق')
                     ->maxLength(20),
 
-                // (10) building: المبنى
                 TextInput::make('building')
                     ->label('المبنى')
                     ->maxLength(50),
 
-                // (11) type: نوع الغرفة
                 Select::make('type')
                     ->label('نوع الغرفة')
                     ->options([
@@ -65,13 +64,11 @@ class RoomResource extends Resource
                     ])
                     ->required(),
 
-                // (12) notes: ملاحظات
                 Textarea::make('notes')
                     ->label('ملاحظات')
                     ->maxLength(65535)
                     ->columnSpanFull(),
 
-                // (13) is_active: تفعيل/تعطيل
                 Toggle::make('is_active')
                     ->label('مفعّلة')
                     ->default(true),
@@ -79,51 +76,46 @@ class RoomResource extends Resource
     }
 
     /**
-     * (14) دالة table(): جدول عرض الغرف
+     * (9) دالة table(): جدول عرض الغرف
      */
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                // (15) id: رقم الغرفة
                 TextColumn::make('id')
                     ->label('#')
                     ->sortable(),
 
-                // (16) name: اسم الغرفة
                 TextColumn::make('name')
                     ->label('اسم الغرفة')
                     ->searchable()
                     ->sortable(),
 
-                // (17) floor: الطابق
                 TextColumn::make('floor')
                     ->label('الطابق')
                     ->searchable(),
 
-                // (18) building: المبنى
                 TextColumn::make('building')
                     ->label('المبنى')
                     ->searchable(),
 
-                // (19) type: نوع الغرفة
                 TextColumn::make('type')
                     ->label('النوع')
-                    ->formatStateUsing(fn ($state) => match ($state) {
-                        'examination' => 'غرفة كشف',
-                        'procedure'   => 'غرفة إجراءات',
-                        'emergency'   => 'طوارئ',
-                        'waiting'     => 'قاعة انتظار',
-                        'office'      => 'مكتب إداري',
-                        default       => $state,
+                    ->formatStateUsing(function ($state) {
+                        return match ($state) {
+                            'examination' => 'غرفة كشف',
+                            'procedure'   => 'غرفة إجراءات',
+                            'emergency'   => 'طوارئ',
+                            'waiting'     => 'قاعة انتظار',
+                            'office'      => 'مكتب إداري',
+                            default       => $state,
+                        };
                     }),
 
-                // (20) is_active: أيقونة تفعيل/تعطيل
                 IconColumn::make('is_active')
                     ->label('مفعّلة')
                     ->boolean(),
 
-                // (21) created_at: تاريخ الإنشاء
                 TextColumn::make('created_at')
                     ->label('تاريخ الإنشاء')
                     ->dateTime('Y-m-d')
@@ -133,17 +125,15 @@ class RoomResource extends Resource
     }
 
     /**
-     * (22) دالة getRelations(): العلاقات
+     * (10) دالة getRelations(): العلاقات
      */
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     /**
-     * (23) دالة getPages(): صفحات الـ Resource
+     * (11) دالة getPages(): صفحات الـ Resource
      */
     public static function getPages(): array
     {

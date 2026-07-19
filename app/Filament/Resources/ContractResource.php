@@ -1,8 +1,11 @@
 <?php
 
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Resources;
 
+// (2) استيراد الكلاسات المطلوبة
 use App\Filament\Resources\ContractResource\Pages;
+use App\Filament\Resources\ContractResource\RelationManagers\CopayTiersRelationManager;
 use App\Models\Contract;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -16,14 +19,26 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Filters\SelectFilter;
 
+// (3) تعريف كلاس ContractResource
 class ContractResource extends Resource
 {
+    // (4) ربط الـ Resource بموديل Contract
     protected static ?string $model = Contract::class;
+
+    // (5) أيقونة القائمة الجانبية
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
+    // (6) تسميات القائمة
     protected static ?string $navigationLabel = 'العقود';
     protected static ?string $modelLabel = 'عقد';
     protected static ?string $pluralModelLabel = 'العقود';
 
+    // (7) تجميع القائمة الجانبية
+    protected static ?string $navigationGroup = 'التسعير والعقود';
+
+    /**
+     * (8) دالة form(): نموذج إضافة وتعديل عقد
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -38,7 +53,6 @@ class ContractResource extends Resource
                     ->required()
                     ->maxLength(100),
 
-                // (1) نوع العقد: نقدي أو تعاقد شركات
                 Select::make('contract_type')
                     ->label('نوع العقد')
                     ->options([
@@ -64,12 +78,13 @@ class ContractResource extends Resource
                     ->after('start_date'),
 
                 TextInput::make('copay_percentage')
-                    ->label('نسبة تحمل المريض (%)')
+                    ->label('نسبة تحمل المريض (%) — عامة')
                     ->numeric()
                     ->minValue(0)
                     ->maxValue(100)
                     ->default(0)
-                    ->suffix('%'),
+                    ->suffix('%')
+                    ->helperText('تُستخدم إذا لم توجد شرائح تحمل محددة'),
 
                 TextInput::make('discount_percentage')
                     ->label('نسبة الخصم (%)')
@@ -90,6 +105,9 @@ class ContractResource extends Resource
             ]);
     }
 
+    /**
+     * (9) دالة table(): جدول عرض العقود
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -107,12 +125,15 @@ class ContractResource extends Resource
                     ->label('الجهة')
                     ->searchable(),
 
-                // (2) عرض نوع العقد
                 TextColumn::make('contract_type')
                     ->label('النوع')
-                    ->formatStateUsing(fn ($state) => $state === 'cash' ? 'نقدي' : 'تعاقد')
+                    ->formatStateUsing(function ($state) {
+                        return $state === 'cash' ? 'نقدي' : 'تعاقد';
+                    })
                     ->badge()
-                    ->color(fn ($state) => $state === 'cash' ? 'success' : 'info'),
+                    ->color(function ($state) {
+                        return $state === 'cash' ? 'success' : 'info';
+                    }),
 
                 TextColumn::make('priceList.name')
                     ->label('اللائحة'),
@@ -129,7 +150,9 @@ class ContractResource extends Resource
 
                 TextColumn::make('copay_percentage')
                     ->label('تحمل المريض')
-                    ->formatStateUsing(fn ($state) => $state . '%'),
+                    ->formatStateUsing(function ($state) {
+                        return $state . '%';
+                    }),
 
                 IconColumn::make('is_active')
                     ->label('مفعّل')
@@ -152,11 +175,19 @@ class ContractResource extends Resource
             ]);
     }
 
+    /**
+     * (10) دالة getRelations(): Relation Managers
+     */
     public static function getRelations(): array
     {
-        return [];
+        return [
+            CopayTiersRelationManager::class,
+        ];
     }
 
+    /**
+     * (11) دالة getPages(): صفحات الـ Resource
+     */
     public static function getPages(): array
     {
         return [

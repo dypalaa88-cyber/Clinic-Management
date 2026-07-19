@@ -1,7 +1,9 @@
 <?php
 
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Resources;
 
+// (2) استيراد الكلاسات المطلوبة
 use App\Filament\Resources\PatientResource\Pages;
 use App\Filament\Resources\PatientResource\RelationManagers\AppointmentsRelationManager;
 use App\Models\Patient;
@@ -19,14 +21,26 @@ use Filament\Tables\Filters\Filter;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 
+// (3) تعريف كلاس PatientResource
 class PatientResource extends Resource
 {
+    // (4) ربط الـ Resource بموديل Patient
     protected static ?string $model = Patient::class;
+
+    // (5) أيقونة القائمة الجانبية
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
+
+    // (6) تسميات القائمة
     protected static ?string $navigationLabel = 'المرضى';
     protected static ?string $modelLabel = 'مريض';
     protected static ?string $pluralModelLabel = 'المرضى';
 
+    // (7) تجميع القائمة الجانبية — مجموعة "المرضى"
+    protected static ?string $navigationGroup = 'المرضى';
+
+    /**
+     * (8) دالة form(): نموذج إضافة وتعديل مريض
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -58,7 +72,6 @@ class PatientResource extends Resource
                     ])
                     ->required(),
 
-                // (1) العقد إجباري — يظهر فقط العقود السارية
                 Select::make('contract_id')
                     ->label('العقد')
                     ->options(function () {
@@ -67,7 +80,9 @@ class PatientResource extends Resource
                             ->whereDate('start_date', '<=', $today)
                             ->whereDate('end_date', '>=', $today)
                             ->get()
-                            ->mapWithKeys(fn ($c) => [$c->id => $c->name . ' (' . $c->organization_name . ')']);
+                            ->mapWithKeys(function ($contract) {
+                                return [$contract->id => $contract->name . ' (' . $contract->organization_name . ')'];
+                            });
                     })
                     ->searchable()
                     ->required(),
@@ -88,9 +103,16 @@ class PatientResource extends Resource
             ]);
     }
 
+    /**
+     * (9) دالة table(): جدول عرض المرضى
+     */
     public static function table(Table $table): Table
     {
         return $table
+            ->paginated([25])
+            ->query(function () {
+                return Patient::query()->with('contract');
+            })
             ->columns([
                 TextColumn::make('id')
                     ->label('#')
@@ -121,7 +143,9 @@ class PatientResource extends Resource
 
                 TextColumn::make('gender')
                     ->label('الجنس')
-                    ->formatStateUsing(fn ($state) => $state === 'male' ? 'ذكر' : 'أنثى'),
+                    ->formatStateUsing(function ($state) {
+                        return $state === 'male' ? 'ذكر' : 'أنثى';
+                    }),
 
                 TextColumn::make('national_id')
                     ->label('الرقم القومي')
@@ -146,12 +170,14 @@ class PatientResource extends Resource
                         if (empty($data['query'])) {
                             return $query;
                         }
+
                         $term = $data['query'];
-                        return $query->where(function ($q) use ($term) {
-                            $q->where('first_name', 'like', "%{$term}%")
-                              ->orWhere('last_name', 'like', "%{$term}%")
-                              ->orWhere('phone', 'like', "%{$term}%")
-                              ->orWhere('national_id', 'like', "%{$term}%");
+
+                        return $query->where(function ($query) use ($term) {
+                            $query->where('first_name', 'like', "%{$term}%")
+                                ->orWhere('last_name', 'like', "%{$term}%")
+                                ->orWhere('phone', 'like', "%{$term}%")
+                                ->orWhere('national_id', 'like', "%{$term}%");
                         });
                     }),
 
@@ -164,13 +190,20 @@ class PatientResource extends Resource
             ]);
     }
 
-   public static function getRelations(): array
-{
-    return [
-        AppointmentsRelationManager::class,
-        \App\Filament\Resources\PatientResource\RelationManagers\PaymentsRelationManager::class,
-    ];
-}
+    /**
+     * (10) دالة getRelations(): Relation Managers
+     */
+    public static function getRelations(): array
+    {
+        return [
+            AppointmentsRelationManager::class,
+            \App\Filament\Resources\PatientResource\RelationManagers\PaymentsRelationManager::class,
+        ];
+    }
+
+    /**
+     * (11) دالة getPages(): صفحات الـ Resource
+     */
     public static function getPages(): array
     {
         return [

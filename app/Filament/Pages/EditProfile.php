@@ -24,6 +24,7 @@ class EditProfile extends Page
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
 
     // (7) static ?string $slug: الرابط المختصر للصفحة (/admin/edit-profile)
+    protected static ?string $navigationGroup = 'الإعدادات';
     protected static ?string $slug = 'edit-profile';
 
     // (8) خاصية لتخزين بيانات النموذج

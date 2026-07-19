@@ -1,0 +1,38 @@
+/* (1) تغيير لون خلفية القائمة الجانبية إلى أزرق غامق */
+.fi-sidebar {
+    background-color: #00346f !important;
+}
+
+/* (2) تغيير لون النصوص في القائمة الجانبية إلى أبيض */
+.fi-sidebar .fi-sidebar-item a,
+.fi-sidebar .fi-sidebar-item button,
+.fi-sidebar .fi-sidebar-group .fi-sidebar-group-label {
+    color: #ffffff !important;
+}
+
+/* (3) تغيير لون الأيقونات إلى أبيض */
+.fi-sidebar .fi-sidebar-item .fi-icon {
+    color: #ffffff !important;
+}
+
+/* (4) لون العنصر النشط (اللي المستخدم فاتحه) — فيروزي */
+.fi-sidebar .fi-sidebar-item.fi-active a {
+    background-color: #006a64 !important;
+    color: #ffffff !important;
+}
+
+/* (5) لون hover — أزرق أغمق */
+.fi-sidebar .fi-sidebar-item a:hover {
+    background-color: #002850 !important;
+    color: #ffffff !important;
+}
+
+/* (6) لون شعار الـ Panel في الأعلى */
+.fi-sidebar .fi-sidebar-header {
+    background-color: #002850 !important;
+}
+
+/* (7) لون حدود القائمة */
+.fi-sidebar {
+    border-left-color: #002850 !important;
+}

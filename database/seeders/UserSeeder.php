@@ -6,6 +6,7 @@ namespace Database\Seeders;
 // (2) استيراد الكلاسات المطلوبة
 use Illuminate\Database\Seeder;
 use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 // (3) تعريف كلاس UserSeeder
 class UserSeeder extends Seeder
@@ -20,7 +21,7 @@ class UserSeeder extends Seeder
             ['email' => 'admin@gmail.com'],
             [
                 'name'     => 'Mohammad Sanad',
-                'password' => \Illuminate\Support\Facades\Hash::make('password'),  // تشفير صحيح
+                'password' => Hash::make('password'),
                 'role'     => 'admin',
                 'locale'   => 'ar',
             ]

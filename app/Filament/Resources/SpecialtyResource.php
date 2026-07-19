@@ -1,7 +1,9 @@
 <?php
 
+// (1) تحديد المسار التنظيمي للملف طبقاً لمعيار PSR-4
 namespace App\Filament\Resources;
 
+// (2) استيراد الكلاسات المطلوبة
 use App\Filament\Resources\SpecialtyResource\Pages;
 use App\Filament\Resources\SpecialtyResource\RelationManagers\PriceListItemsRelationManager;
 use App\Models\Specialty;
@@ -14,14 +16,26 @@ use Filament\Forms\Components\Toggle;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\IconColumn;
 
+// (3) تعريف كلاس SpecialtyResource
 class SpecialtyResource extends Resource
 {
+    // (4) ربط الـ Resource بموديل Specialty
     protected static ?string $model = Specialty::class;
+
+    // (5) أيقونة القائمة الجانبية
     protected static ?string $navigationIcon = 'heroicon-o-tag';
+
+    // (6) تسميات القائمة
     protected static ?string $navigationLabel = 'التخصصات';
     protected static ?string $modelLabel = 'تخصص';
     protected static ?string $pluralModelLabel = 'التخصصات';
 
+    // (7) تجميع القائمة الجانبية
+    protected static ?string $navigationGroup = 'الأطباء والعيادات';
+
+    /**
+     * (8) دالة form(): نموذج إضافة وتعديل تخصص
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -43,6 +57,9 @@ class SpecialtyResource extends Resource
             ]);
     }
 
+    /**
+     * (9) دالة table(): جدول عرض التخصصات
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -73,7 +90,9 @@ class SpecialtyResource extends Resource
             ]);
     }
 
-    // (1) تسجيل Relation Manager لخدمات التخصص
+    /**
+     * (10) دالة getRelations(): Relation Managers
+     */
     public static function getRelations(): array
     {
         return [
@@ -81,6 +100,9 @@ class SpecialtyResource extends Resource
         ];
     }
 
+    /**
+     * (11) دالة getPages(): صفحات الـ Resource
+     */
     public static function getPages(): array
     {
         return [
