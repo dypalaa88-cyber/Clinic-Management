@@ -40,7 +40,6 @@ class AdminPanelProvider extends PanelProvider
             ->login()
 
             // (9) colors(): تخصيص ألوان واجهة المستخدم
-            //     Color::Blue هو اللون الافتراضي المستقر لـ Filament 3.3
             ->colors([
                 'primary' => Color::Blue,
             ])
@@ -60,7 +59,7 @@ class AdminPanelProvider extends PanelProvider
             // (13) discoverWidgets(): اكتشاف الودجات تلقائياً
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
 
-            // (14) middleware(): تسجيل طبقات الوسيط الأساسية + Middleware اللغة
+            // (14) middleware(): تسجيل طبقات الوسيط الأساسية + Middleware اللغة + Middleware الصلاحيات
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,
@@ -72,6 +71,7 @@ class AdminPanelProvider extends PanelProvider
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
                 \App\Http\Middleware\SetUserLocale::class,
+                \App\Http\Middleware\CheckPermission::class,
             ])
 
             // (15) authMiddleware(): طبقة وسيط المصادقة

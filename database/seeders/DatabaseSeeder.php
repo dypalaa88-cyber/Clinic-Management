@@ -10,6 +10,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             UserSeeder::class,
+            RolePermissionSeeder::class,
             SpecialtySeeder::class,
             RoomSeeder::class,
             DoctorSeeder::class,
@@ -18,6 +19,7 @@ class DatabaseSeeder extends Seeder
             AppointmentSeeder::class,
             PriceListSeeder::class,
             ContractSeeder::class,
+            InventoryItemSeeder::class,
         ]);
     }
 }
